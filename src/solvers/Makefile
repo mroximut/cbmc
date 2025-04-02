@@ -69,6 +69,13 @@ ifneq ($(CADICAL),)
   CLEANFILES += $(CADICAL_LIB) $(patsubst %$(OBJEXT), %$(DEPEXT), $(CADICAL_LIB))
 endif
 
+ifneq ($(MALLOB),)
+  MALLOB_SRC=sat/satcheck_mallob.cpp
+  MALLOB_INCLUDE=-I $(MALLOB)/src -I $(MALLOB)/src/util/tsl -I $(MALLOB)/src/util
+  MALLOB_LIB=$(MALLOB)/build/libmallob_core$(LIBEXT) $(MALLOB)/build/libmallob_corepluscomm$(LIBEXT) $(MALLOB)/build/libmallob_sat_subproc$(LIBEXT)
+  CP_CXXFLAGS += -DHAVE_MALLOB
+endif
+
 SRC = $(BOOLEFORCE_SRC) \
       $(CHAFF_SRC) \
       $(CUDD_SRC) \
@@ -80,6 +87,7 @@ SRC = $(BOOLEFORCE_SRC) \
       $(PICOSAT_SRC) \
       $(SQUOLEM2_SRC) \
       $(CADICAL_SRC) \
+      $(MALLOB_SRC) \
       decision_procedure.cpp \
       flattening/arrays.cpp \
       flattening/boolbv.cpp \
@@ -251,7 +259,7 @@ INCLUDES += -I .. \
   $(CHAFF_INCLUDE) $(BOOLEFORCE_INCLUDE) $(MINISAT_INCLUDE) $(MINISAT2_INCLUDE) \
   $(IPASIR_INCLUDE) \
   $(SQUOLEM2_INC) $(CUDD_INCLUDE) $(GLUCOSE_INCLUDE) \
-	$(PICOSAT_INCLUDE) $(LINGELING_INCLUDE) $(CADICAL_INCLUDE)
+	$(PICOSAT_INCLUDE) $(LINGELING_INCLUDE) $(CADICAL_INCLUDE) $(MALLOB_INCLUDE) 
 
 CLEANFILES += solvers$(LIBEXT) \
   smt2_solver$(EXEEXT) smt2/smt2_solver$(OBJEXT) smt2/smt2_solver$(DEPEXT)
@@ -268,7 +276,7 @@ endif
 
 SOLVER_LIB = $(CHAFF_LIB) $(BOOLEFORCE_LIB) $(MINISAT_LIB) \
         $(MINISAT2_LIB) $(SQUOLEM2_LIB) $(CUDD_LIB) \
-        $(PICOSAT_LIB) $(LINGELING_LIB) $(GLUCOSE_LIB) $(CADICAL_LIB)
+        $(PICOSAT_LIB) $(LINGELING_LIB) $(GLUCOSE_LIB) $(CADICAL_LIB) $(MALLOB_LIB)  
 
 SOLVER_OBJS = $(filter %$(OBJEXT), $(SOLVER_LIB))
 ifneq ($(SOLVER_OBJS),)
@@ -288,3 +296,10 @@ solvers$(LIBEXT): $(OBJ) $(SOLVER_LIB)
 smt2_solver$(EXEEXT): $(OBJ) smt2/smt2_solver$(OBJEXT) \
 	../util/util$(LIBEXT) ../big-int/big-int$(LIBEXT) $(SOLVER_LIB)
 	$(LINKBIN)
+
+ifneq ($(MALLOB),)
+ifeq ($(BUILD_ENV_),MSVC)
+sat/satcheck_mallob$(OBJEXT): sat/satcheck_mallob.cpp
+    $(CXX) $(CP_CXXFLAGS) /w /nologo /c /EHsc $< /Fo$@
+endif
+endif

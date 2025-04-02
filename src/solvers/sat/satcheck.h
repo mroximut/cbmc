@@ -59,6 +59,10 @@ Author: Daniel Kroening, kroening@kroening.com
 #define SATCHECK_CADICAL
 #endif
 
+#if defined(HAVE_MALLOB) && !defined(SATCHECK_MALLOB)
+#define SATCHECK_MALLOB
+#endif
+
 #if defined SATCHECK_ZCHAFF
 #  include "satcheck_zchaff.h"
 #endif
@@ -93,6 +97,10 @@ Author: Daniel Kroening, kroening@kroening.com
 
 #if defined SATCHECK_CADICAL
 #  include "satcheck_cadical.h"
+#endif
+
+#if defined SATCHECK_MALLOB
+#  include "satcheck_mallob.h"
 #endif
 
 #if defined SATCHECK_ZCHAFF
@@ -139,6 +147,11 @@ typedef satcheck_glucose_no_simplifiert satcheck_no_simplifiert;
 
 typedef satcheck_cadical_no_preprocessingt satcheckt;
 typedef satcheck_cadical_no_preprocessingt satcheck_no_simplifiert;
+
+#elif defined SATCHECK_MALLOB
+
+typedef satcheck_mallobt satcheckt;
+typedef satcheck_mallobt satcheck_no_simplifiert;
 
 #endif
 

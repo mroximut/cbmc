@@ -201,6 +201,10 @@ ifneq ($(CADICAL),)
   CP_CXXFLAGS += -DHAVE_CADICAL
 endif
 
+ifneq ($(MALLOB),)
+  CP_CXXFLAGS += -DHAVE_MALLOB
+endif
+
 
 ifneq ($(CUDD),)
   CP_CXXFLAGS += -DHAVE_CUDD
