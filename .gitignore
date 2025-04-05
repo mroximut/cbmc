@@ -166,3 +166,6 @@ dist/
 
 # auto generated documentation
 doc/html/
+
+mallob_thread_trace*
+.api/

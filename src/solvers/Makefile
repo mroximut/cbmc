@@ -71,9 +71,15 @@ endif
 
 ifneq ($(MALLOB),)
   MALLOB_SRC=sat/satcheck_mallob.cpp
-  MALLOB_INCLUDE=-I $(MALLOB)/src -I $(MALLOB)/src/util/tsl -I $(MALLOB)/src/util
+  MALLOB_INCLUDE=-I $(MALLOB)/src -I $(MALLOB)/src/util/tsl -I $(MALLOB)/src/util -I $(MALLOB)/lib
   MALLOB_LIB=$(MALLOB)/build/libmallob_core$(LIBEXT) $(MALLOB)/build/libmallob_corepluscomm$(LIBEXT) $(MALLOB)/build/libmallob_sat_subproc$(LIBEXT)
-  CP_CXXFLAGS += -DHAVE_MALLOB
+  MALLOB_LIB += $(MALLOB)/lib/cadical/libcadical$(LIBEXT) $(MALLOB)/build/libmallob$(LIBEXT)
+  CP_CXXFLAGS += -DHAVE_MALLOB -DMALLOB_SUBPROC_DISPATCH_PATH=\"$(MALLOB)/build/\"
+
+  # Add MPI support for Mallob
+  # MPI_INCLUDE := $(shell mpic++ --showme:compile)
+  # MALLOB_INCLUDE += $(MPI_INCLUDE)
+  # instead use mpic++ in src/comon
 endif
 
 SRC = $(BOOLEFORCE_SRC) \
@@ -297,9 +303,9 @@ smt2_solver$(EXEEXT): $(OBJ) smt2/smt2_solver$(OBJEXT) \
 	../util/util$(LIBEXT) ../big-int/big-int$(LIBEXT) $(SOLVER_LIB)
 	$(LINKBIN)
 
-ifneq ($(MALLOB),)
-ifeq ($(BUILD_ENV_),MSVC)
-sat/satcheck_mallob$(OBJEXT): sat/satcheck_mallob.cpp
-    $(CXX) $(CP_CXXFLAGS) /w /nologo /c /EHsc $< /Fo$@
-endif
-endif
+# ifneq ($(MALLOB),)
+# ifeq ($(BUILD_ENV_),MSVC)
+# sat/satcheck_mallob$(OBJEXT): sat/satcheck_mallob.cpp
+#     $(CXX) $(CP_CXXFLAGS) /w /nologo /c /EHsc $< /Fo$@
+# endif
+# endif

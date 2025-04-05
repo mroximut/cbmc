@@ -5,11 +5,8 @@
 
 #include <solvers/hardness_collector.h>
 
-#ifdef HAVE_MALLOB
-class APIConnector;
-class JsonInterface;
-class Parameters;
-#endif
+//#ifdef HAVE_MALLOB
+//#endif
 
 class satcheck_mallobt : public cnf_solvert, public hardness_collectort
 {
@@ -43,10 +40,8 @@ private:
   std::vector<int> _failed_assumptions;
   std::vector<std::vector<int>> _clauses;
 
-#ifdef HAVE_MALLOB
-  std::unique_ptr<APIConnector> _api_connector;
-  std::unique_ptr<Parameters> _mallob_params;
-#endif
+//#ifdef HAVE_MALLOB
+//#endif
 };
 
 #endif // CPROVER_SOLVERS_SAT_SATCHECK_MALLOB_H

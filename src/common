@@ -87,7 +87,7 @@ else
     #CC     = icc
   endif
   ifeq ($(origin CXX),default)
-    CXX    = g++
+    CXX    = mpic++ # g++
     #CXX    = icpc
   endif
   YFLAGS ?= -v -Werror
