@@ -2,10 +2,13 @@
 #define CPROVER_SOLVERS_SAT_SATCHECK_MALLOB_H
 
 #include <solvers/sat/cnf.h>
-
+#include <set>
+#include <vector>
 #include <solvers/hardness_collector.h>
 
 //#ifdef HAVE_MALLOB
+class Parameters;
+class Client;
 //#endif
 
 class satcheck_mallobt : public cnf_solvert, public hardness_collectort
@@ -37,11 +40,13 @@ protected:
 
 private:
   std::vector<int> _model;
-  std::vector<int> _failed_assumptions;
-  std::vector<std::vector<int>> _clauses;
+  std::set<int> _failed_assumptions;
+  std::vector<int> _formula;
 
-//#ifdef HAVE_MALLOB
-//#endif
+  //#ifdef HAVE_MALLOB
+  void introduceMonoJob(Parameters& params, Client& client);
+  int main_mallob(int argc, char *argv[]);
+  //#endif
 };
 
 #endif // CPROVER_SOLVERS_SAT_SATCHECK_MALLOB_H

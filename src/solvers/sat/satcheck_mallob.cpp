@@ -75,14 +75,14 @@
 bool monoJobDone = false;
 nlohmann::json result_json;
 
-void introduceMonoJob(Parameters& params, Client& client) {
+void satcheck_mallobt::introduceMonoJob(Parameters& params, Client& client) {
 
     // Write a job JSON for the singular job to solve
     nlohmann::json json = {
         {"user", "admin"},
         {"name", "mono-job"},
         //{"files", {params.monoFilename()}},
-        {"literals", {1, 2, 3, 0}},
+        {"literals", _formula},
         {"priority", 1.000},
         {"application", "SAT"}
     };
@@ -104,106 +104,8 @@ void introduceMonoJob(Parameters& params, Client& client) {
     }
 }
 
-inline bool doTerminate(Parameters& params, int rank) {
-    
-    bool terminate = false;
-    if (Terminator::isTerminating(/*fromMainThread=*/true)) {
-        terminate = true;
-        MyMpi::broadcastExitSignal();
-    }
-    if (monoJobDone || (params.timeLimit() > 0 && Timer::elapsedSecondsCached() > params.timeLimit())) {
-        terminate = true;
-        MyMpi::broadcastExitSignal();
-    }
-    if (terminate) {
-        if (rank == 0) {
-            LOG(V2_INFO, "Terminating.\n");
-        } else {
-            LOG(V3_VERB, "Terminating.\n");
-        }
-        Terminator::setTerminating();
-        return true;
-    }
-    return false;
-}
 
-void doMainProgram(MPI_Comm& commWorkers, MPI_Comm& commClients, Parameters& params, DistributedTermination& distTerm) {
-
-    // Determine which role(s) this PE has
-    bool isWorker = commWorkers != MPI_COMM_NULL;
-    bool isClient = commClients != MPI_COMM_NULL;
-    if (isWorker) LOG(V4_VVER, "I am worker #%i\n", MyMpi::rank(commWorkers));
-    if (isClient) LOG(V4_VVER, "I am client #%i\n", MyMpi::rank(commClients));
-
-    // Create worker and client as necessary
-    Worker* worker = isWorker ? new Worker(commWorkers, params) : nullptr;
-    Client* client = isClient ? new Client(commClients, params) : nullptr;
-    
-    // Initialize worker and client as necessary (background threads, callbacks, ...)
-    if (isWorker) worker->init();
-    if (isClient) client->init();
-    int myRank = MyMpi::rank(MPI_COMM_WORLD);
-
-    // Deposit information to coordinate the creation of an intra-machine communicator
-    HostComm hostComm(commWorkers, params);
-    hostComm.depositInformation();
-
-    LOG(V5_DEBG, "Global init barrier ...\n");
-    MPI_Barrier(MPI_COMM_WORLD);
-    LOG(V5_DEBG, "Passed global init barrier\n");
-
-    // Create intra-machine communicator (collective operation)
-    hostComm.create();
-    if (isWorker) worker->setHostComm(hostComm);
-
-    // If job streaming is enabled, initialize a corresponding job streamer
-    JobStreamer* streamer = nullptr;
-    if (params.jobTemplate.isSet() && isClient) {
-        streamer = new JobStreamer(params, client->getAPI(), client->getInternalRank());
-    }
-    
-    // If mono solving mode is enabled, introduce the singular job to solve
-    if (/*params.monoFilename.isSet() &&*/ isClient && MyMpi::rank(commClients) == 0)
-        introduceMonoJob(params, *client);
-
-    // Main loop
-    while (true) {
-
-        // update cached timing
-        Timer::cacheElapsedSeconds();
-
-        // Advance worker and client logic
-        if (isWorker) worker->advance();
-        if (isClient) client->advance();
-
-        // Advance message queue and run callbacks for done messages
-        MyMpi::getMessageQueue().advance();
-
-        // Check termination
-        if (distTerm.triggered())
-            Terminator::setTerminating();
-        if (monoJobDone)
-            Terminator::setTerminating();
-        if (params.timeLimit() > 0 && Timer::elapsedSecondsCached() > params.timeLimit())
-            Terminator::setTerminating();
-        if (Terminator::isTerminating(true)) {
-            distTerm.trigger(); // if not triggered already   
-            break;
-        }
-
-        // Sleep and/or yield thread
-        if (params.sleepMicrosecs() > 0) usleep(params.sleepMicrosecs());
-        if (params.yield()) std::this_thread::yield();
-    }
-
-    // Clean up
-    if (streamer) delete streamer;
-    if (isWorker) delete worker;
-    if (isClient) delete client;
-}
-
-
-int main_mallob(int argc, char *argv[]) {
+int satcheck_mallobt::main_mallob(int argc, char *argv[]) {
     
   MyMpi::init();
   Timer::init();
@@ -215,8 +117,9 @@ int main_mallob(int argc, char *argv[]) {
   Parameters params;
   argc = 3;
   argv[1] = strdup("-t=16");
-  argv[2] = strdup("-compress-models");
-  argv[3] = strdup("-verbosity=6");
+  argv[2] = strdup("-verbosity=6");
+  //argv[2] = strdup("-compress-models");
+  
   params.init(argc, argv);
   for (int i = 0; i < argc; i++) {
       LOG(V2_INFO, "argv[%d]: %s\n", i, argv[i]);
@@ -313,7 +216,76 @@ int main_mallob(int argc, char *argv[]) {
   
   // Execute main program
   try {
-      doMainProgram(workerComm, clientComm, params, *distTerm.get());
+      //doMainProgram(workerComm, clientComm, params, *distTerm.get());
+          // Determine which role(s) this PE has
+    auto& commWorkers = workerComm;
+    auto& commClients = clientComm;
+    auto& distTerm2 = *distTerm.get();
+    DistributedTermination& distTerm = distTerm2;
+
+    bool isWorker = commWorkers != MPI_COMM_NULL;
+    bool isClient = commClients != MPI_COMM_NULL;
+    if (isWorker) LOG(V4_VVER, "I am worker #%i\n", MyMpi::rank(commWorkers));
+    if (isClient) LOG(V4_VVER, "I am client #%i\n", MyMpi::rank(commClients));
+
+    // Create worker and client as necessary
+    Worker* worker = isWorker ? new Worker(commWorkers, params) : nullptr;
+    Client* client = isClient ? new Client(commClients, params) : nullptr;
+    
+    // Initialize worker and client as necessary (background threads, callbacks, ...)
+    if (isWorker) worker->init();
+    if (isClient) client->init();
+    int myRank = MyMpi::rank(MPI_COMM_WORLD);
+
+    // Deposit information to coordinate the creation of an intra-machine communicator
+    HostComm hostComm(commWorkers, params);
+    hostComm.depositInformation();
+
+    LOG(V5_DEBG, "Global init barrier ...\n");
+    MPI_Barrier(MPI_COMM_WORLD);
+    LOG(V5_DEBG, "Passed global init barrier\n");
+
+    // Create intra-machine communicator (collective operation)
+    hostComm.create();
+    if (isWorker) worker->setHostComm(hostComm);
+
+    // If mono solving mode is enabled, introduce the singular job to solve
+    if (/*params.monoFilename.isSet() &&*/ isClient && MyMpi::rank(commClients) == 0)
+        introduceMonoJob(params, *client);
+
+    // Main loop
+    while (true) {
+
+        // update cached timing
+        Timer::cacheElapsedSeconds();
+
+        // Advance worker and client logic
+        if (isWorker) worker->advance();
+        if (isClient) client->advance();
+
+        // Advance message queue and run callbacks for done messages
+        MyMpi::getMessageQueue().advance();
+
+        // Check termination
+        if (distTerm.triggered())
+            Terminator::setTerminating();
+        if (monoJobDone)
+            Terminator::setTerminating();
+        if (params.timeLimit() > 0 && Timer::elapsedSecondsCached() > params.timeLimit())
+            Terminator::setTerminating();
+        if (Terminator::isTerminating(true)) {
+            distTerm.trigger(); // if not triggered already   
+            break;
+        }
+
+        // Sleep and/or yield thread
+        if (params.sleepMicrosecs() > 0) usleep(params.sleepMicrosecs());
+        if (params.yield()) std::this_thread::yield();
+    }
+
+    // Clean up
+    if (isWorker) delete worker;
+    if (isClient) delete client;
   } catch (const std::exception& ex) {
       LOG(V0_CRIT, "[ERROR] uncaught \"%s\"\n", ex.what());
       Process::doExit(1);
@@ -347,7 +319,7 @@ satcheck_mallobt::satcheck_mallobt(message_handlert &message_handler)
 {
   // Initialize model and failed assumptions
   _model.clear();
-  _failed_assumptions.clear();
+  _formula.clear();
 }
 
 satcheck_mallobt::~satcheck_mallobt() = default;
@@ -359,20 +331,29 @@ std::string satcheck_mallobt::solver_text() const
 
 tvt satcheck_mallobt::l_get(literalt a) const
 {
-  if(a.is_constant())
-    return tvt(a.sign());
+  if(a.is_true()) 
+    return tvt(true);
+  else if(a.is_false()) 
+    return tvt(false);
+
+  tvt result;
 
   // Check if the variable is in bounds
   if(a.var_no() >= _model.size())
-    return tvt(tvt::tv_enumt::TV_UNKNOWN);
+    return tvt::unknown();
 
   const int val = _model[a.var_no()];
   if(val > 0)
-    return tvt(true);
+    result = tvt(true);
   else if(val < 0)
-    return tvt(false);
+    result = tvt(false);
   else
-    return tvt(tvt::tv_enumt::TV_UNKNOWN);
+    return tvt::unknown();
+
+  if(a.sign()) // a negative
+    result = !result;
+
+  return result;
 }
 
 void satcheck_mallobt::lcnf(const bvt &bv)
@@ -382,11 +363,19 @@ void satcheck_mallobt::lcnf(const bvt &bv)
     if(lit.is_true())
       return;
     else if(!lit.is_false())
-      INVARIANT(lit.var_no() < no_variables(), "reject out of bound variables");
+      INVARIANT(lit.var_no() < no_variables(), 
+      "reject out of bound variables");
   }
 
-  // In a real implementation, we would add the clause to Mallob
-  // For this dummy implementation, we just count clauses
+  for(const auto &literal : bv)
+  {
+    if(!literal.is_false())
+    {
+      // add literal with correct sign
+      _formula.push_back(literal.dimacs());
+    }
+  }
+  _formula.push_back(0); // terminate clause
 
   if(solver_hardness)
   {
@@ -416,10 +405,7 @@ void satcheck_mallobt::set_assignment(literalt a, bool value)
 bool satcheck_mallobt::is_in_conflict(literalt a) const
 {
   // Check if this literal is in the failed assumptions list
-  return std::find(
-           _failed_assumptions.begin(),
-           _failed_assumptions.end(),
-           a.dimacs()) != _failed_assumptions.end();
+  return _failed_assumptions.count(a.dimacs());
 }
 
 propt::resultt satcheck_mallobt::do_prop_solve(const bvt &assumptions)
@@ -432,7 +418,34 @@ propt::resultt satcheck_mallobt::do_prop_solve(const bvt &assumptions)
   log.statistics() << (no_variables() - 1) << " variables, " << clause_counter
                    << " clauses" << messaget::eom;
 
-  // Run mallob with a dummy mono job
+  // Check for trivial UNSAT from assumptions
+  for(const auto &a : assumptions)
+  {
+    if(a.is_false())
+    {
+      log.status() << "got FALSE as assumption: instance is UNSATISFIABLE"
+                  << messaget::eom;
+      status = statust::UNSAT;
+      return resultt::P_UNSATISFIABLE;
+    }
+  }
+
+  // auto assumptions_dimacs = [&]() {
+  //   std::vector<int> dimacs;
+  //   for(const auto &a : assumptions) {
+  //     dimacs.push_back(a.dimacs());
+  //   }
+  //   return dimacs;
+  // }();
+  for (const auto &literal : assumptions)
+  {
+    if(!literal.is_true())
+    {
+      // Add the assumption to the mallob formula
+      _formula.push_back(literal.dimacs());
+      _formula.push_back(0); // terminate clause
+    }
+  }
 
   char* mallob_argv[] = {(char*)"mallob", nullptr};
   
@@ -443,43 +456,54 @@ propt::resultt satcheck_mallobt::do_prop_solve(const bvt &assumptions)
   mallob_thread.join(); // Wait for thread completion
   log.status() << "Mallob thread finished" << messaget::eom;  
   
- 
-  // // Check for trivial UNSAT from assumptions
-  // for(const auto &a : assumptions)
-  // {
-  //   if(a.is_false())
-  //   {
-  //     log.status() << "got FALSE as assumption: instance is UNSATISFIABLE"
-  //                 << messaget::eom;
-  //     status = statust::UNSAT;
-  //     return resultt::P_UNSATISFIABLE;
-  //   }
-  // }
+  int resultcode;
+  nlohmann::json j = result_json;
+  // Success!
+  resultcode = j["result"]["resultcode"];
+  if (resultcode == 10) {
+      // SAT
+    _model.resize(no_variables()+1, 0);
 
-  // // if assumptions contains false, we need this to be UNSAT
-  // for(const auto &a : assumptions)
-  // {
-  //   if(a.is_false())
-  //   {
-  //     log.status() << "got FALSE as assumption: instance is UNSATISFIABLE"
-  //                  << messaget::eom;
-  //     status = statust::UNSAT;
-  //     return resultt::P_UNSATISFIABLE;
-  //   }
-  // }
-
-  // DUMMY IMPLEMENTATION: Always return SAT
-  log.status() << "SAT checker (DUMMY): instance is SATISFIABLE" << messaget::eom;
-  
-  // Generate a model where all variables are set to true
-  _model.resize(no_variables() + 1, 0);
-  for(size_t i = 1; i <= no_variables(); i++)
-  {
-    _model[i] = i; // All variables are positive
+    // Check the type of the solution field
+    if (j["result"]["solution"].is_array()) {
+      // Handle as array of integers
+      if (j["result"]["solution"].size() > 0 && j["result"]["solution"][0].is_number()) {
+        std::vector<int> modelLits = j["result"]["solution"].get<std::vector<int>>();
+        printf("(%.3f) Got direct integer solution of size %lu\n", Timer::elapsedSeconds(), modelLits.size());
+        for (int lit : modelLits) {
+          const int var = std::abs(lit);
+          _model[var] = lit;
+        }
+      } 
+    }
+    log.status() << "SAT checker: instance is SATISFIABLE" << messaget::eom;
+    status = statust::SAT;
+    return resultt::P_SATISFIABLE;
+  } else if (resultcode == 20) {
+      // UNSAT
+      // Check the type of the solution field
+      if (j["result"]["solution"].is_array()) {
+        // Handle as array of integers
+        if (j["result"]["solution"].size() > 0 && j["result"]["solution"][0].is_number()) {
+          std::vector<int> failedAssumptions = j["result"]["solution"].get<std::vector<int>>();
+          printf("(%.3f) Got direct integer failed assumptions of size %lu\n", 
+          Timer::elapsedSeconds(), failedAssumptions.size());
+          _failed_assumptions.insert(failedAssumptions.begin(), failedAssumptions.end());
+        }
+      }
+    log.status() << "SAT checker: instance is UNSATISFIABLE" << messaget::eom;
+    status = statust::UNSAT;
+    return resultt::P_UNSATISFIABLE;
+  } else {
+    status = statust::ERROR;
+    return resultt::P_ERROR;
   }
+        
+  // // DUMMY IMPLEMENTATION: Always return SAT
+  // log.status() << "SAT checker (DUMMY): instance is SATISFIABLE" << messaget::eom;
   
-  status = statust::SAT;
-  return resultt::P_SATISFIABLE;
+  // status = statust::SAT;
+  // return resultt::P_SATISFIABLE;
 }
 //#endif
 
