@@ -72,41 +72,48 @@
 #define MALLOB_VERSION "(dbg)"
 #endif
 
-bool monoJobDone = false;
+bool pending = false;
+bool allDone = false;
 nlohmann::json result_json;
+bool started = false;
+bool initialized = false;
+bool terminated = false;
+int job_id = 0;
 
-void satcheck_mallobt::introduceMonoJob(Parameters& params, Client& client) {
 
-    // Write a job JSON for the singular job to solve
-    nlohmann::json json = {
-        {"user", "admin"},
-        {"name", "mono-job"},
-        //{"files", {params.monoFilename()}},
-        {"literals", _formula},
-        {"priority", 1.000},
-        {"application", "SAT"}
-    };
-    if (params.crossJobCommunication()) json["group-id"] = "1";
-    if (params.jobWallclockLimit() > 0)
-        json["wallclock-limit"] = std::to_string(params.jobWallclockLimit()) + "s";
-    if (params.jobCpuLimit() > 0) {
-        json["cpu-limit"] = std::to_string(params.jobCpuLimit()) + "s";
-    }
+std::vector<int> decompressModel(const std::string& compressedModel) {
+  char* solutionStr;
+  size_t nbVars = std::strtoul(compressedModel.c_str(), &solutionStr, 10); // reads until ":"
+  assert(solutionStr[0] == ':');
+  std::vector<int> solution(nbVars+1, 0); // index 0 has a filler 0
 
-    auto result = client.getAPI().submit(json, [&](nlohmann::json& response) {
-        // Job done? => Terminate all processes
-        monoJobDone = true;
-        result_json = std::move(response);
-    });
-    if (result != JsonInterface::Result::ACCEPT) {
-        LOG(V0_CRIT, "[ERROR] Cannot introduce mono job!\n");
-        abort();
-    }
+  int strpos = 1; // after ":"
+  int var = 1;
+  while (solutionStr[strpos] != '\0') {
+      char c = solutionStr[strpos];
+      std::string cAsString(1, c);
+      char* endptr;
+      int num = std::strtol(cAsString.c_str(), &endptr, 16);
+      assert(endptr - cAsString.c_str() == 1); // read exactly one character!
+      if (var <= nbVars) solution[var] = (num & 1) ? var : -var;
+      var++;
+      if (var <= nbVars) solution[var] = (num & 2) ? var : -var;
+      var++;
+      if (var <= nbVars) solution[var] = (num & 4) ? var : -var;
+      var++;
+      if (var <= nbVars) solution[var] = (num & 8) ? var : -var;
+      var++;
+      strpos++;
+  }
+  //LOG(V2_INFO, "MAXSAT DECOMPRESS %s ==> %s\n", packed.c_str(), StringUtils::getSummary(solution, INT_MAX).c_str());
+
+  printf("(%.3f) Decompressed model to size %lu\n", Timer::elapsedSeconds(), solution.size());
+  return solution;
 }
 
-
 int satcheck_mallobt::main_mallob(int argc, char *argv[]) {
-    
+  
+  started = true;
   MyMpi::init();
   Timer::init();
   Proc::nameThisThread("MainThread");
@@ -115,11 +122,7 @@ int satcheck_mallobt::main_mallob(int argc, char *argv[]) {
   int rank = MyMpi::rank(MPI_COMM_WORLD);
 
   Parameters params;
-  argc = 3;
-  argv[1] = strdup("-t=16");
-  argv[2] = strdup("-verbosity=6");
-  //argv[2] = strdup("-compress-models");
-  
+
   params.init(argc, argv);
   for (int i = 0; i < argc; i++) {
       LOG(V2_INFO, "argv[%d]: %s\n", i, argv[i]);
@@ -250,9 +253,11 @@ int satcheck_mallobt::main_mallob(int argc, char *argv[]) {
     if (isWorker) worker->setHostComm(hostComm);
 
     // If mono solving mode is enabled, introduce the singular job to solve
-    if (/*params.monoFilename.isSet() &&*/ isClient && MyMpi::rank(commClients) == 0)
-        introduceMonoJob(params, *client);
-
+    //if (/*params.monoFilename.isSet() &&*/ isClient && MyMpi::rank(commClients) == 0)
+    //    introduceMonoJob(params, *client);
+    _params = &params;
+    _client = client;
+    initialized = true;
     // Main loop
     while (true) {
 
@@ -269,7 +274,7 @@ int satcheck_mallobt::main_mallob(int argc, char *argv[]) {
         // Check termination
         if (distTerm.triggered())
             Terminator::setTerminating();
-        if (monoJobDone)
+        if (allDone)
             Terminator::setTerminating();
         if (params.timeLimit() > 0 && Timer::elapsedSecondsCached() > params.timeLimit())
             Terminator::setTerminating();
@@ -294,10 +299,6 @@ int satcheck_mallobt::main_mallob(int argc, char *argv[]) {
       Process::doExit(1);
   }
 
-  if (!result_json.empty()) {
-      LOG(V2_INFO, "Result: %s\n", result_json.dump().c_str());
-  }
-
   // Exit properly
   MyMpi::getMessageQueue().close();
   distTerm.reset();
@@ -310,6 +311,7 @@ int satcheck_mallobt::main_mallob(int argc, char *argv[]) {
   Process::removeDelayedExitWatchers();
   LOG(V2_INFO, "Exiting happily\n");
 
+  terminated = true;
   return 0;
 }
 
@@ -320,9 +322,34 @@ satcheck_mallobt::satcheck_mallobt(message_handlert &message_handler)
   // Initialize model and failed assumptions
   _model.clear();
   _formula.clear();
+
+  if (!started) {
+
+  static int argc = 4;
+  static char* argv[] = {strdup("mallob"), strdup("-t=16"), strdup("-verbosity=4"), strdup("-compress-models"), nullptr};
+
+  std::thread mallob_thread([&]() {
+      main_mallob(argc, argv);
+  });
+  mallob_thread.detach();
+
+  }
 }
 
-satcheck_mallobt::~satcheck_mallobt() = default;
+satcheck_mallobt::~satcheck_mallobt() { 
+  assert(!pending && "Pending jobs should be finished before destruction");
+  allDone = true;
+
+  while (!terminated) {
+    usleep(100000);
+  }
+
+  _model.clear();
+  _failed_assumptions.clear();
+  _formula.clear();
+
+  log.status() << "SAT checker: instance is deleted" << messaget::eom;
+}
 
 std::string satcheck_mallobt::solver_text() const
 {
@@ -410,7 +437,7 @@ bool satcheck_mallobt::is_in_conflict(literalt a) const
 
 propt::resultt satcheck_mallobt::do_prop_solve(const bvt &assumptions)
 {
-
+  assert(!pending && "Pending jobs should be finished before destruction");
   log.status() << "Entered prop solve" << messaget::eom;
 
   INVARIANT(status != statust::ERROR, "there cannot be an error");
@@ -418,6 +445,7 @@ propt::resultt satcheck_mallobt::do_prop_solve(const bvt &assumptions)
   log.statistics() << (no_variables() - 1) << " variables, " << clause_counter
                    << " clauses" << messaget::eom;
 
+  std::vector<int> currAssumptions;
   // Check for trivial UNSAT from assumptions
   for(const auto &a : assumptions)
   {
@@ -427,34 +455,96 @@ propt::resultt satcheck_mallobt::do_prop_solve(const bvt &assumptions)
                   << messaget::eom;
       status = statust::UNSAT;
       return resultt::P_UNSATISFIABLE;
+    } else if (!a.is_true()) {
+      currAssumptions.push_back(a.dimacs());
     }
   }
 
-  // auto assumptions_dimacs = [&]() {
-  //   std::vector<int> dimacs;
-  //   for(const auto &a : assumptions) {
-  //     dimacs.push_back(a.dimacs());
-  //   }
-  //   return dimacs;
-  // }();
-  for (const auto &literal : assumptions)
-  {
-    if(!literal.is_true())
-    {
-      // Add the assumption to the mallob formula
-      _formula.push_back(literal.dimacs());
-      _formula.push_back(0); // terminate clause
-    }
+  // Wait for the initialization to finish
+  while (!initialized) {
+      usleep(100000);
   }
 
-  char* mallob_argv[] = {(char*)"mallob", nullptr};
-  
-  std::thread mallob_thread([&]() {
-    int ret = main_mallob(1, mallob_argv);
+  // pending = true;
+
+  // std::string precursor1 = job_id == 0 ? "" : "cbmc.cbmc-job-rev." + std::to_string(job_id-1);
+  //   // Write a job JSON for the singular job to solve
+  //   nlohmann::json json1 = {
+  //     {"user", "cbmc"},
+  //     {"name", "cbmc-job-rev." + std::to_string(job_id)},
+  //     {"incremental", true},
+  //     //{"precursor", precursor},
+  //     //{"done", true},
+  //     //{"files", {"/home/oguz/Desktop/hiwi_code/cbmc_mallob_monolithic/mallob/instances/r3unknown_10k.cnf"}},
+  //     {"literals", _formula},
+  //     {"assumptions", {-1}},
+  //     {"priority", 1.000},
+  //     {"application", "SAT"}
+  // };
+  // if (precursor1 != "") json1["precursor"] = precursor1;
+  // // if (_params->crossJobCommunication()) json["group-id"] = "1";
+  // // if (_params->jobWallclockLimit() > 0)
+  // //     json["wallclock-limit"] = std::to_string(_params->jobWallclockLimit()) + "s";
+  // // if (_params->jobCpuLimit() > 0) {
+  // //     json["cpu-limit"] = std::to_string(_params->jobCpuLimit()) + "s";
+  // // }
+ 
+  // auto result1 = _client->getAPI().submit(json1, [&](nlohmann::json& response) {
+  //     job_id++;
+  //     result_json = std::move(response);
+  //     pending = false;
+  // });
+  // if (result1 != JsonInterface::Result::ACCEPT) {
+  //     LOG(V0_CRIT, "[ERROR] Cannot introduce job!\n");
+  //     abort();
+  // }
+
+  // while (pending) {
+  //     usleep(100000);
+  // }
+
+  pending = true;
+
+  std::string precursor = job_id == 0 ? "" : "cbmc.cbmc-job-rev." + std::to_string(job_id-1);
+    // Write a job JSON for the singular job to solve
+    nlohmann::json json = {
+      {"user", "cbmc"},
+      {"name", "cbmc-job-rev." + std::to_string(job_id)},
+      {"incremental", true},
+      //{"precursor", precursor},
+      //{"done", true},
+      //{"files", {"/home/oguz/Desktop/hiwi_code/cbmc_mallob_monolithic/mallob/instances/r3unknown_10k.cnf"}},
+      {"literals", _formula},
+      {"assumptions", currAssumptions},
+      {"priority", 1.000},
+      {"application", "SAT"}
+  };
+  //if (precursor != "") json["precursor"] = precursor;
+  // if (_params->crossJobCommunication()) json["group-id"] = "1";
+  // if (_params->jobWallclockLimit() > 0)
+  //     json["wallclock-limit"] = std::to_string(_params->jobWallclockLimit()) + "s";
+  // if (_params->jobCpuLimit() > 0) {
+  //     json["cpu-limit"] = std::to_string(_params->jobCpuLimit()) + "s";
+  // }
+ 
+  auto result = _client->getAPI().submit(json, [&](nlohmann::json& response) {
+      job_id++;
+      result_json = std::move(response);
+      pending = false;
   });
+  if (result != JsonInterface::Result::ACCEPT) {
+      LOG(V0_CRIT, "[ERROR] Cannot introduce job!\n");
+      abort();
+  }
 
-  mallob_thread.join(); // Wait for thread completion
-  log.status() << "Mallob thread finished" << messaget::eom;  
+  while (pending) {
+      usleep(100000);
+  }
+  
+  log.status() << "Mallob job finished" << messaget::eom;  
+  if (!result_json.empty()) {
+    LOG(V2_INFO, "Result: %s\n", result_json.dump().c_str());
+  }
   
   int resultcode;
   nlohmann::json j = result_json;
@@ -464,21 +554,26 @@ propt::resultt satcheck_mallobt::do_prop_solve(const bvt &assumptions)
       // SAT
     _model.resize(no_variables()+1, 0);
 
-    // Check the type of the solution field
     if (j["result"]["solution"].is_array()) {
-      // Handle as array of integers
       if (j["result"]["solution"].size() > 0 && j["result"]["solution"][0].is_number()) {
         std::vector<int> modelLits = j["result"]["solution"].get<std::vector<int>>();
-        printf("(%.3f) Got direct integer solution of size %lu\n", Timer::elapsedSeconds(), modelLits.size());
+        log.status() << Timer::elapsedSeconds() << " Got model" << modelLits.size() << messaget::eom;
         for (int lit : modelLits) {
           const int var = std::abs(lit);
           _model[var] = lit;
         }
       } 
+    } else if (j["result"]["solution"].is_string()) {
+      // Handle single compressed model string
+      std::string compressedModel = j["result"]["solution"].get<std::string>();
+      log.status() << Timer::elapsedSeconds() << " Got compressed model" << compressedModel.c_str() << messaget::eom;
+      _model = decompressModel(compressedModel);
     }
+
     log.status() << "SAT checker: instance is SATISFIABLE" << messaget::eom;
     status = statust::SAT;
     return resultt::P_SATISFIABLE;
+
   } else if (resultcode == 20) {
       // UNSAT
       // Check the type of the solution field
@@ -486,8 +581,7 @@ propt::resultt satcheck_mallobt::do_prop_solve(const bvt &assumptions)
         // Handle as array of integers
         if (j["result"]["solution"].size() > 0 && j["result"]["solution"][0].is_number()) {
           std::vector<int> failedAssumptions = j["result"]["solution"].get<std::vector<int>>();
-          printf("(%.3f) Got direct integer failed assumptions of size %lu\n", 
-          Timer::elapsedSeconds(), failedAssumptions.size());
+          log.status() << Timer::elapsedSeconds() << " Got direct integer solution of size" << failedAssumptions.size() << messaget::eom;
           _failed_assumptions.insert(failedAssumptions.begin(), failedAssumptions.end());
         }
       }
@@ -506,4 +600,5 @@ propt::resultt satcheck_mallobt::do_prop_solve(const bvt &assumptions)
   // return resultt::P_SATISFIABLE;
 }
 //#endif
+
 

@@ -42,10 +42,11 @@ private:
   std::vector<int> _model;
   std::set<int> _failed_assumptions;
   std::vector<int> _formula;
-
+  
   //#ifdef HAVE_MALLOB
-  void introduceMonoJob(Parameters& params, Client& client);
   int main_mallob(int argc, char *argv[]);
+  Parameters* _params;
+  Client* _client;
   //#endif
 };
 
