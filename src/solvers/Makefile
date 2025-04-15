@@ -71,15 +71,10 @@ endif
 
 ifneq ($(MALLOB),)
   MALLOB_SRC=sat/satcheck_mallob.cpp
-  MALLOB_INCLUDE=-I $(MALLOB)/src -I $(MALLOB)/src/util/tsl -I $(MALLOB)/src/util -I $(MALLOB)/lib
-  MALLOB_LIB=$(MALLOB)/build/libmallob_core$(LIBEXT) $(MALLOB)/build/libmallob_corepluscomm$(LIBEXT) $(MALLOB)/build/libmallob_sat_subproc$(LIBEXT)
-  MALLOB_LIB += $(MALLOB)/lib/cadical/libcadical$(LIBEXT) $(MALLOB)/build/libmallob$(LIBEXT)
-  CP_CXXFLAGS += -DHAVE_MALLOB -DMALLOB_SUBPROC_DISPATCH_PATH=\"$(MALLOB)/build/\"
-
-  # Add MPI support for Mallob
-  # MPI_INCLUDE := $(shell mpic++ --showme:compile)
-  # MALLOB_INCLUDE += $(MPI_INCLUDE)
-  # instead use mpic++ in src/comon
+  MALLOB_INCLUDE=-I $(MALLOB)/src
+  MALLOB_LIB= $(MALLOB)/build_onlysat/libmallob_corepluscomm$(LIBEXT)
+  #MALLOB_LIB += $(MALLOB)/build_onlysat/libmallob_corepluscomm$(LIBEXT) $(MALLOB)/build_onlysat/libmallob_sat_subproc$(LIBEXT) $(MALLOB)/lib/cadical/libcadical$(LIBEXT) $(MALLOB)/build_onlysat/libmallob$(LIBEXT)
+  CP_CXXFLAGS += -DHAVE_MALLOB #-DMALLOB_SUBPROC_DISPATCH_PATH=\"$(MALLOB)/build_onlysat/\"
 endif
 
 SRC = $(BOOLEFORCE_SRC) \

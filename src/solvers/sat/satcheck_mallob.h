@@ -7,8 +7,8 @@
 #include <solvers/hardness_collector.h>
 
 //#ifdef HAVE_MALLOB
-class Parameters;
-class Client;
+class APIConnector;
+class SatJobStream;
 //#endif
 
 class satcheck_mallobt : public cnf_solvert, public hardness_collectort
@@ -44,9 +44,8 @@ private:
   std::vector<int> _formula;
   
   //#ifdef HAVE_MALLOB
-  int main_mallob(int argc, char *argv[]);
-  Parameters* _params;
-  Client* _client;
+  APIConnector* _api = nullptr;
+  SatJobStream* _streamer = nullptr;
   //#endif
 };
 
