@@ -1460,7 +1460,7 @@ public:
   explicit is_cstring_exprt(exprt address)
     : unary_predicate_exprt(ID_is_cstring, std::move(address))
   {
-    PRECONDITION(as_const(*this).address().type().id() == ID_pointer);
+    PRECONDITION(::as_const(*this).address().type().id() == ID_pointer);
   }
 
   exprt &address()
@@ -1518,7 +1518,7 @@ public:
   cstrlen_exprt(exprt address, typet type)
     : unary_exprt(ID_cstrlen, std::move(address), std::move(type))
   {
-    PRECONDITION(as_const(*this).address().type().id() == ID_pointer);
+    PRECONDITION(::as_const(*this).address().type().id() == ID_pointer);
   }
 
   exprt &address()
@@ -1574,7 +1574,7 @@ public:
   explicit live_object_exprt(exprt pointer)
     : unary_predicate_exprt(ID_live_object, std::move(pointer))
   {
-    PRECONDITION(as_const(*this).pointer().type().id() == ID_pointer);
+    PRECONDITION(::as_const(*this).pointer().type().id() == ID_pointer);
   }
 
   exprt &pointer()
@@ -1630,7 +1630,7 @@ public:
   explicit writeable_object_exprt(exprt pointer)
     : unary_predicate_exprt(ID_writeable_object, std::move(pointer))
   {
-    PRECONDITION(as_const(*this).pointer().type().id() == ID_pointer);
+    PRECONDITION(::as_const(*this).pointer().type().id() == ID_pointer);
   }
 
   exprt &pointer()
