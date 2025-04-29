@@ -30,6 +30,7 @@
 #include "app/cbmc/sat_job_stream.hpp"
 #include "interface/api/api_registry.hpp"
 
+
 //bool pending = false;
 nlohmann::json result_json;
 //int job_id = 0;
@@ -276,11 +277,13 @@ propt::resultt satcheck_mallobt::do_prop_solve(const bvt &assumptions)
   //     usleep(100000);
   // }
   /////////////////////////////////////////
+  
   _streamer->submitNext(std::move(_formula), currAssumptions, "", 1.0);
   while (_streamer->isPending()) {
     log.status() << "Waiting for job to finish" << messaget::eom;
     usleep(100000);
   }
+  _formula = std::vector<int>();
   result_json = _streamer->getResult();
 
   log.status() << "Mallob job finished" << messaget::eom;  
