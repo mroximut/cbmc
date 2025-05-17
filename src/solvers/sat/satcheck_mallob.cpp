@@ -62,7 +62,7 @@ std::vector<int> decompressModel(const std::string& compressedModel) {
   }
   //LOG(V2_INFO, "MAXSAT DECOMPRESS %s ==> %s\n", packed.c_str(), StringUtils::getSummary(solution, INT_MAX).c_str());
 
-  printf("(%.3f) Decompressed model to size %lu\n", Timer::elapsedSeconds(), solution.size());
+  //printf("(%.3f) Decompressed model to size %lu\n", Timer::elapsedSeconds(), solution.size());
   return solution;
 }
 
@@ -280,7 +280,7 @@ propt::resultt satcheck_mallobt::do_prop_solve(const bvt &assumptions)
   
   _streamer->submitNext(std::move(_formula), currAssumptions, "", 1.0);
   while (_streamer->isPending()) {
-    log.status() << "Waiting for job to finish" << messaget::eom;
+    //log.status() << "Waiting for job to finish" << messaget::eom;
     usleep(100000);
   }
   _formula = std::vector<int>();
@@ -302,7 +302,7 @@ propt::resultt satcheck_mallobt::do_prop_solve(const bvt &assumptions)
     if (j["result"]["solution"].is_array()) {
       if (j["result"]["solution"].size() > 0 && j["result"]["solution"][0].is_number()) {
         std::vector<int> modelLits = j["result"]["solution"].get<std::vector<int>>();
-        log.status() << Timer::elapsedSeconds() << " Got model" << modelLits.size() << messaget::eom;
+        //log.status() << Timer::elapsedSeconds() << " Got model" << modelLits.size() << messaget::eom;
         for (int lit : modelLits) {
           const int var = std::abs(lit);
           _model[var] = lit;
@@ -311,7 +311,7 @@ propt::resultt satcheck_mallobt::do_prop_solve(const bvt &assumptions)
     } else if (j["result"]["solution"].is_string()) {
       // Handle single compressed model string
       std::string compressedModel = j["result"]["solution"].get<std::string>();
-      log.status() << Timer::elapsedSeconds() << " Got compressed model" << compressedModel.c_str() << messaget::eom;
+      //log.status() << Timer::elapsedSeconds() << " Got compressed model" << compressedModel.c_str() << messaget::eom;
       _model = decompressModel(compressedModel);
     }
 
