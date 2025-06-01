@@ -18,6 +18,7 @@ Author: Daniel Kroening, kroening@kroening.com
 */
 
 #include "cbmc_parse_options.h"
+#include <iostream>
 
 #ifdef _MSC_VER
 #  include <util/unicode.h>
@@ -43,6 +44,10 @@ int wmain(int argc, const wchar_t **argv_wide)
 int main(int argc, const char **argv)
 {
 #endif
+  for(int i = 0; i < argc; ++i)
+  {
+    std::cout << "argv[" << i << "]: " << argv[i] << std::endl;
+  }
   cbmc_parse_optionst parse_options(argc, argv);
 
   int res = parse_options.main();

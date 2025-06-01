@@ -11,6 +11,6 @@
     * `make`
 * Build cbmc
     * `cd cbmc`
-    * ` rm ./src/solvers/solvers.a ./src/libcprover-cpp/libcprover-cpp.a `
+    * ` rm ./src/solvers/solvers.a ./src/libcprover-cpp/libcprover-cpp.a ./src/cbmc/libcbmc.a`
     * ` MALLOB=<path_to_mallob> make -C src "CXXFLAGS+=-Wno-error" `
     * Run cbmc `./src/cbmc/cbmc --sat-solver mallob example2.c --verbosity 9`

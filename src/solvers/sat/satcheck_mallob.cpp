@@ -138,6 +138,11 @@ void satcheck_mallobt::lcnf(const bvt &bv)
       // add literal with correct sign
       _formula.push_back(literal.dimacs());
     }
+  } 
+  
+  if (_formula.back() == 0) {
+    status = statust::UNSAT;
+    return;
   }
   _formula.push_back(0); // terminate clause
 
@@ -176,11 +181,18 @@ propt::resultt satcheck_mallobt::do_prop_solve(const bvt &assumptions)
 {
   assert(!_streamer->isPending());
   log.status() << "Entered prop solve" << messaget::eom;
+  _failed_assumptions.clear();
 
   INVARIANT(status != statust::ERROR, "there cannot be an error");
 
   log.statistics() << (no_variables() - 1) << " variables, " << clause_counter
                    << " clauses" << messaget::eom;
+
+  if (status == statust::UNSAT) {
+    log.status() << "There was an empty clause" << messaget::eom;
+    _formula.clear();
+    return resultt::P_UNSATISFIABLE;
+  }
 
   std::vector<int> currAssumptions;
   // Check for trivial UNSAT from assumptions
@@ -191,6 +203,7 @@ propt::resultt satcheck_mallobt::do_prop_solve(const bvt &assumptions)
       log.status() << "got FALSE as assumption: instance is UNSATISFIABLE"
                   << messaget::eom;
       status = statust::UNSAT;
+      _formula.clear();
       return resultt::P_UNSATISFIABLE;
     } else if (!a.is_true()) {
       currAssumptions.push_back(a.dimacs());
