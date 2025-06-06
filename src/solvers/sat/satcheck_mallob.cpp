@@ -30,6 +30,7 @@
 #include "app/cbmc/sat_job_stream.hpp"
 #include "interface/api/api_registry.hpp"
 
+int satcheck_mallobt::streamIdCounter = 0;
 
 //bool pending = false;
 nlohmann::json result_json;
@@ -72,7 +73,8 @@ satcheck_mallobt::satcheck_mallobt(message_handlert &message_handler)
 {
   _api = APIRegistry::get();
   log.status() << "Hello" << _api->active() << messaget::eom; 
-  _streamer = new SatJobStream(*_api, 0, true);
+  _streamer = new SatJobStream(*_api, streamIdCounter, true);
+  streamIdCounter++;
 }
 
 satcheck_mallobt::~satcheck_mallobt() { 

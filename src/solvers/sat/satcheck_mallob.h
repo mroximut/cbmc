@@ -13,6 +13,8 @@ class SatJobStream;
 
 class satcheck_mallobt : public cnf_solvert, public hardness_collectort
 {
+  static int streamIdCounter;
+
 public:
   satcheck_mallobt(message_handlert &message_handler); 
   virtual ~satcheck_mallobt() override; 
