@@ -143,7 +143,7 @@ void satcheck_mallobt::lcnf(const bvt &bv)
   } 
   
   if (_formula.back() == 0) {
-    status = statust::UNSAT;
+    _empty_clause = true;
     return;
   }
   _formula.push_back(0); // terminate clause
@@ -190,8 +190,9 @@ propt::resultt satcheck_mallobt::do_prop_solve(const bvt &assumptions)
   log.statistics() << (no_variables() - 1) << " variables, " << clause_counter
                    << " clauses" << messaget::eom;
 
-  if (status == statust::UNSAT) {
+  if (_empty_clause) {
     log.status() << "There was an empty clause" << messaget::eom;
+    status = statust::UNSAT;
     _formula.clear();
     return resultt::P_UNSATISFIABLE;
   }

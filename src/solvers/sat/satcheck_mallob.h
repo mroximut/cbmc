@@ -44,6 +44,7 @@ private:
   std::vector<int> _model;
   std::set<int> _failed_assumptions;
   std::vector<int> _formula;
+  bool _empty_clause = false;
   
   //#ifdef HAVE_MALLOB
   APIConnector* _api = nullptr;
