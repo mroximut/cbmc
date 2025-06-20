@@ -18,6 +18,8 @@ Author: Daniel Kroening, kroening@kroening.com
 */
 
 #include "cbmc_parse_options.h"
+#include <chrono>
+#include <iostream>
 
 #ifdef _MSC_VER
 #  include <util/unicode.h>
@@ -43,9 +45,42 @@ int wmain(int argc, const wchar_t **argv_wide)
 int main(int argc, const char **argv)
 {
 #endif
-  cbmc_parse_optionst parse_options(argc, argv);
+  class TimeLogger
+  {
+  public:
+    std::chrono::steady_clock::time_point &start, &end;
+    TimeLogger(std::chrono::steady_clock::time_point &s,
+                  std::chrono::steady_clock::time_point &e)
+      : start(s), end(e) {}
+    ~TimeLogger()
+    {
+      std::cout << "t CBMCTIME:"
+                  << std::chrono::duration_cast<std::chrono::milliseconds>(
+                        end - start)
+                          .count()
+                  << " ms" << std::endl;
+    }
+  };
 
-  int res = parse_options.main();
+  auto start = std::chrono::steady_clock::now();
+  auto end = start;
+
+  TimeLogger sat_time_logger(start, end);
+
+
+  cbmc_parse_optionst parse_options(argc, argv);
+  int res = -1;
+
+  try
+  {
+    res = parse_options.main();
+    end = std::chrono::steady_clock::now();
+  }
+    catch(...)
+  {
+    end = std::chrono::steady_clock::now();
+    throw;
+  }
 
   #ifdef IREP_HASH_STATS
   std::cout << "IREP_HASH_CNT=" << irep_hash_cnt << '\n';
