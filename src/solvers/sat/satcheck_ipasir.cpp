@@ -11,6 +11,8 @@ Author: Norbert Manthey, nmanthey@amazon.com
 #include <util/exception_utils.h>
 #include <util/invariant.h>
 #include <util/threeval.h>
+#include <chrono>
+#include <iostream>
 
 #include "satcheck_ipasir.h"
 
@@ -136,7 +138,42 @@ propt::resultt satcheck_ipasirt::do_prop_solve()
     }
 
     // solve the formula, and handle the return code (10=SAT, 20=UNSAT)
-    int solver_state = ipasir_solve(solver);
+    // Start timer for SAT solving
+    
+    class SatTimeLogger
+    {
+    public:
+      std::chrono::steady_clock::time_point &start, &end;
+      SatTimeLogger(std::chrono::steady_clock::time_point &s,
+                    std::chrono::steady_clock::time_point &e)
+        : start(s), end(e) {}
+      ~SatTimeLogger()
+      {
+        std::cout << "t SATTIME:"
+                    << std::chrono::duration_cast<std::chrono::milliseconds>(
+                          end - start)
+                            .count()
+                    << " ms" << std::endl;
+      }
+    };
+
+    auto sat_start = std::chrono::steady_clock::now();
+    int solver_state = -1;
+    auto sat_end = sat_start;
+
+    SatTimeLogger sat_time_logger(sat_start, sat_end);
+
+    try
+    {
+      solver_state = ipasir_solve(solver);
+      sat_end = std::chrono::steady_clock::now();
+    }
+    catch(...)
+    {
+      sat_end = std::chrono::steady_clock::now();
+      throw;
+    }
+
     if(10 == solver_state)
     {
       log.status() << "SAT checker: instance is SATISFIABLE" << messaget::eom;
