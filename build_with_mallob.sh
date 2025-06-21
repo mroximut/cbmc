@@ -1,0 +1,1 @@
+ MALLOB=$MALLOB_PATH make -C src "CXXFLAGS+=-Wno-error -std=c++17" -j16

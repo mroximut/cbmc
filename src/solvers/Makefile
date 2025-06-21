@@ -68,6 +68,15 @@ ifneq ($(CADICAL),)
   CP_CXXFLAGS += -DHAVE_CADICAL
 endif
 
+ifneq ($(MALLOB),)
+  MALLOB_SRC=sat/satcheck_mallob.cpp
+  MALLOB_INCLUDE=-I $(MALLOB)/src -I $(MALLOB)/src/util/tsl -I $(MALLOB)/src/util
+  MALLOB_LIB= $(MALLOB)/build/libmallob_corepluscomm$(LIBEXT)
+  CP_CXXFLAGS += -DHAVE_MALLOB 
+endif
+
+
+
 SRC = $(BOOLEFORCE_SRC) \
       $(CHAFF_SRC) \
       $(CUDD_SRC) \
@@ -79,6 +88,7 @@ SRC = $(BOOLEFORCE_SRC) \
       $(PICOSAT_SRC) \
       $(SQUOLEM2_SRC) \
       $(CADICAL_SRC) \
+      $(MALLOB_SRC) \
       decision_procedure.cpp \
       flattening/arrays.cpp \
       flattening/boolbv.cpp \
@@ -246,7 +256,7 @@ INCLUDES += -I .. \
   $(CHAFF_INCLUDE) $(BOOLEFORCE_INCLUDE) $(MINISAT_INCLUDE) $(MINISAT2_INCLUDE) \
   $(IPASIR_INCLUDE) \
   $(SQUOLEM2_INC) $(CUDD_INCLUDE) $(GLUCOSE_INCLUDE) \
-	$(PICOSAT_INCLUDE) $(LINGELING_INCLUDE) $(CADICAL_INCLUDE)
+	$(PICOSAT_INCLUDE) $(LINGELING_INCLUDE) $(CADICAL_INCLUDE) $(MALLOB_INCLUDE) 
 
 CLEANFILES += solvers$(LIBEXT) \
   smt2_solver$(EXEEXT) smt2/smt2_solver$(OBJEXT) smt2/smt2_solver$(DEPEXT)
@@ -263,7 +273,7 @@ endif
 
 SOLVER_LIB = $(CHAFF_LIB) $(BOOLEFORCE_LIB) $(MINISAT_LIB) \
         $(MINISAT2_LIB) $(SQUOLEM2_LIB) $(CUDD_LIB) \
-        $(PICOSAT_LIB) $(LINGELING_LIB) $(GLUCOSE_LIB) $(CADICAL_LIB)
+        $(PICOSAT_LIB) $(LINGELING_LIB) $(GLUCOSE_LIB) $(CADICAL_LIB) $(MALLOB_LIB)
 
 SOLVER_OBJS = $(filter %$(OBJEXT), $(SOLVER_LIB))
 ifneq ($(SOLVER_OBJS),)

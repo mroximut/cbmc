@@ -35,7 +35,7 @@ endif
 #CADICAL = ../../cadical
 
 # select default solver to be minisat2 if no other is specified
-ifeq ($(BOOLEFORCE)$(CHAFF)$(GLUCOSE)$(IPASIR)$(LINGELING)$(MINISAT)$(MINISAT2)$(PICOSAT)$(CADICAL),)
+ifeq ($(BOOLEFORCE)$(CHAFF)$(GLUCOSE)$(IPASIR)$(LINGELING)$(MINISAT)$(MINISAT2)$(PICOSAT)$(CADICAL)$(MALLOB),)
   MINISAT2 = ../../minisat-2.2.1
 endif
 
