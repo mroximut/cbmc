@@ -45,6 +45,12 @@ int wmain(int argc, const wchar_t **argv_wide)
 int main(int argc, const char **argv)
 {
 #endif
+
+  for(int i = 0; i < argc; ++i)
+  {
+    std::cout << "argv[" << i << "]: " << argv[i] << std::endl;
+  }
+
   class TimeLogger
   {
   public:

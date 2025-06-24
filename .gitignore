@@ -152,3 +152,6 @@ dist/
 doc/html/
 
 cadical
+src/ansi-c/gcc_builtin_headers_ia32-5.inc
+src/crangler/c_lex.yy.cpp
+src/crangler/crangler
