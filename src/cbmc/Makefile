@@ -52,9 +52,9 @@ LIBS =
 include ../config.inc
 include ../common
 
-CLEANFILES = cbmc$(EXEEXT)
+CLEANFILES = cbmc$(EXEEXT) libcbmc$(LIBEXT) 
 
-all: cbmc$(EXEEXT)
+all: cbmc$(EXEEXT) libcbmc$(LIBEXT)
 
 ifneq ($(wildcard ../bv_refinement/Makefile),)
   OBJ += ../bv_refinement/bv_refinement$(LIBEXT)
@@ -70,6 +70,9 @@ endif
 
 cbmc$(EXEEXT): $(OBJ)
 	$(LINKBIN)
+
+libcbmc$(LIBEXT): $(OBJ)
+	$(LINKLIB)
 
 .PHONY: cbmc-mac-signed
 

@@ -38,7 +38,7 @@ ifeq ($(filter-out OSX OSX_Universal,$(BUILD_ENV_)),)
   LINKFLAGS += -mmacosx-version-min=10.15 -stdlib=libc++
   LINKNATIVE += -mmacosx-version-min=10.15 -stdlib=libc++
 else
-  CP_CXXFLAGS += -MMD -MP -std=c++11
+  CP_CXXFLAGS += -MMD -MP -std=c++17
 endif
 ifeq ($(filter -O%,$(CXXFLAGS)),)
   CP_CXXFLAGS += -O2

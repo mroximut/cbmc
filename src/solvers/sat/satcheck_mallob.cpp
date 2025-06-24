@@ -21,7 +21,6 @@
 #include <thread>
 #include <vector>
 
-#include "util/logger.hpp"
 #include "util/params.hpp"
 #include "interface/api/api_connector.hpp"
 #include "interface/json_interface.hpp"

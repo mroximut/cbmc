@@ -2274,7 +2274,7 @@ class not_exprt:public unary_exprt
 public:
   explicit not_exprt(exprt _op) : unary_exprt(ID_not, std::move(_op))
   {
-    PRECONDITION(as_const(*this).op().type().id() == ID_bool);
+    PRECONDITION(::as_const(*this).op().type().id() == ID_bool);
   }
 };
 
