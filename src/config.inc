@@ -71,6 +71,10 @@ ifneq ($(CADICAL),)
   CP_CXXFLAGS += -DSATCHECK_CADICAL
 endif
 
+ifneq ($(MALLOB),)
+  CP_CXXFLAGS += -DSATCHECK_MALLOB
+endif
+
 # Signing identity for MacOS Gatekeeper
 
 OSX_IDENTITY="Developer ID Application: Daniel Kroening"

@@ -1,7 +1,7 @@
 #ifndef CPROVER_SOLVERS_SAT_SATCHECK_MALLOB_H
 #define CPROVER_SOLVERS_SAT_SATCHECK_MALLOB_H
 
-#include <solvers/sat/cnf.h>
+#include "cnf.h"
 #include <set>
 #include <vector>
 #include <solvers/hardness_collector.h>
@@ -14,6 +14,7 @@ class SatJobStream;
 class satcheck_mallobt : public cnf_solvert, public hardness_collectort
 {
   static int streamIdCounter;
+  static APIConnector* _api;
 
 public:
   satcheck_mallobt(message_handlert &message_handler); 
@@ -24,6 +25,8 @@ public:
 
   void lcnf(const bvt &bv) override final; // add a clause to the formula
   void set_assignment(literalt a, bool value) override; // force a literal to have a specific value
+
+  void set_assumptions(const bvt &_assumptions) override; // set assumptions for the SAT solver
 
   bool has_set_assumptions() const override final // support for assumptions
   {
@@ -37,6 +40,8 @@ public:
   
   bool is_in_conflict(literalt a) const override; // check if a literal is part of the conflict
 
+
+
 protected:
   resultt do_prop_solve() override; // solve the SAT problem with given assumptions
 
@@ -47,10 +52,10 @@ private:
   std::set<int> _failed_assumptions;
   std::vector<int> _formula;
   bool _empty_clause = false;
+  bool _submitted = false;
   
   //#ifdef HAVE_MALLOB
-  APIConnector* _api = nullptr;
-  SatJobStream* _streamer = nullptr;
+  SatJobStream* _streamer;
   //#endif
 };
 
