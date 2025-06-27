@@ -27,16 +27,15 @@
 #include "interface/json_interface.hpp"
 #include "util/json.hpp"
 #include "util/option.hpp"
-#include "app/2ls/sat_job_stream.hpp"
 #include "interface/api/api_registry.hpp"
+#include "app/2ls/cbmc_sat_connector.hpp"
 
-int satcheck_mallobt::streamIdCounter = 0;
-APIConnector* satcheck_mallobt::_api = nullptr;
+//int satcheck_mallobt::streamIdCounter = 0;
+//APIConnector* satcheck_mallobt::_api = nullptr;
 
 //bool pending = false;
 //nlohmann::json result_json;
 //int job_id = 0;
-
 
 std::vector<int> decompressModel(const std::string& compressedModel) {
   char* solutionStr;
@@ -72,16 +71,18 @@ std::vector<int> decompressModel(const std::string& compressedModel) {
 satcheck_mallobt::satcheck_mallobt(message_handlert &message_handler)
   : cnf_solvert(message_handler)
 {
-  if (_api == nullptr) {
-    _api = APIRegistry::get();
-  }
+  // if (_api == nullptr) {
+  //   _api = APIRegistry::get();
+  // }
 
-  std::cout << "Hello" << _api->active() << std::endl; 
-  //std::cout << "Hello from satcheck_mallobt" << std::endl;
-  _streamer = new SatJobStream(*_api, streamIdCounter, true);
+  // std::cout << "Hello" << _api->active() << std::endl; 
+  // //std::cout << "Hello from satcheck_mallobt" << std::endl;
+  // _streamer = new SatJobStream(*_api, streamIdCounter, true);
 
-  std::cout << "Created SatJobStream with ID: " << streamIdCounter << std::endl;
-  streamIdCounter++;
+  // std::cout << "Created SatJobStream with ID: " << streamIdCounter << std::endl;
+  // streamIdCounter++;
+
+  _sat_connector = new CBMCSatConnector("Mallob SAT Connector");
 }
 
 satcheck_mallobt::~satcheck_mallobt() { 
@@ -89,10 +90,12 @@ satcheck_mallobt::~satcheck_mallobt() {
   //   _streamer->finalize();
   //   std::cout << "SatJobStream finalized" << std::endl;
   // }
-
+  _sat_connector->setTerminate();
   _model.clear();
   _failed_assumptions.clear();
   _formula.clear();
+  delete _sat_connector;
+  _sat_connector = nullptr; 
 
   //_api = nullptr;
   //_streamer = nullptr;
@@ -218,7 +221,7 @@ bool satcheck_mallobt::is_in_conflict(literalt a) const
 
 propt::resultt satcheck_mallobt::do_prop_solve()
 {
-  assert(!_streamer->isPending());
+  //assert(!_streamer->isPending());
   std::cout << "Entered prop solve" << std::endl;
   // _failed_assumptions.clear();
   // _model.clear();
@@ -252,72 +255,98 @@ propt::resultt satcheck_mallobt::do_prop_solve()
       currAssumptions.push_back(a.dimacs());
     }
   }
-  
-  _streamer->submitNext(std::move(_formula), currAssumptions, "", 1.0);
-  _submitted = true;
-  std::cout << "Mallob job submitted" << std::endl;
-  while (_streamer->isPending()) {
-    std::cout << "Waiting for job to finish" << std::endl;
-    usleep(10000);
-  }
-  _formula = std::vector<int>();
-  nlohmann::json j = _streamer->getResult();
 
-  std::cout << "Mallob job finished" << std::endl;  
-  
-  int resultcode;
-  // Success!
-  resultcode = j["result"]["resultcode"];
-  if (resultcode == 10) {
-    //_model.clear();
-      // SAT
-    _model.resize(no_variables()+1, 0);
+  _sat_connector->setFormula(std::move(_formula), no_variables(), no_clauses());
+  _formula.clear(); 
+  _sat_connector->setAssumptions(std::move(currAssumptions));
+  int resultCode = _sat_connector->solve();
 
-    if (j["result"]["solution"].is_array()) {
-      if (j["result"]["solution"].size() > 0 && j["result"]["solution"][0].is_number()) {
-        std::vector<int> modelLits = j["result"]["solution"].get<std::vector<int>>();
-        //std::cout << Timer::elapsedSeconds() << " Got model" << modelLits.size() << std::endl;
-        for (int lit : modelLits) {
-          const int var = std::abs(lit);
-          _model[var] = lit;
-        }
-      } 
-    } else if (j["result"]["solution"].is_string()) {
-      // Handle single compressed model string
-      std::string compressedModel = j["result"]["solution"].get<std::string>();
-      //std::cout << Timer::elapsedSeconds() << " Got compressed model" << compressedModel.c_str() << std::endl;
-      _model = decompressModel(compressedModel);
-    }
-
-    j["result"]["solution"] = "[solution data omitted]";
-    LOG(V2_INFO, "Mallob result: %s\n", j.dump().c_str());
-    
+  if (resultCode == 10) {
+    // SAT
+    _model = _sat_connector->getSolution();
     std::cout << "SAT checker: instance is SATISFIABLE" << std::endl;
     status = statust::SAT;
     return resultt::P_SATISFIABLE;
 
-  } else if (resultcode == 20) {
-    _failed_assumptions.clear();
-      // UNSAT
-      // Check the type of the solution field
-      if (j["result"]["solution"].is_array()) {
-        // Handle as array of integers
-        if (j["result"]["solution"].size() > 0 && j["result"]["solution"][0].is_number()) {
-          std::vector<int> failedAssumptions = j["result"]["solution"].get<std::vector<int>>();
-          //std::cout << Timer::elapsedSeconds() << " Got direct integer solution of size" << failedAssumptions.size() << std::endl;
-          _failed_assumptions.insert(failedAssumptions.begin(), failedAssumptions.end());
-        }
-      }
-
-    LOG(V2_INFO, "Mallob result: %s\n", j.dump().c_str());
-    
+  } else if (resultCode == 20) {
+    // UNSAT
+    _failed_assumptions = _sat_connector->getFailedLiterals();
     std::cout << "SAT checker: instance is UNSATISFIABLE" << std::endl;
     status = statust::UNSAT;
     return resultt::P_UNSATISFIABLE;
+
   } else {
     status = statust::ERROR;
     return resultt::P_ERROR;
   }
+  
+  
+  
+  // _streamer->submitNext(std::move(_formula), currAssumptions, "", 1.0);
+  // _submitted = true;
+  // std::cout << "Mallob job submitted" << std::endl;
+  // while (_streamer->isPending()) {
+  //   std::cout << "Waiting for job to finish" << std::endl;
+  //   usleep(10000);
+  // }
+  // _formula = std::vector<int>();
+  // nlohmann::json j = _streamer->getResult();
+
+  // std::cout << "Mallob job finished" << std::endl;  
+  
+  // int resultcode;
+  // // Success!
+  // resultcode = j["result"]["resultcode"];
+  // if (resultcode == 10) {
+  //   //_model.clear();
+  //     // SAT
+  //   _model.resize(no_variables()+1, 0);
+
+  //   if (j["result"]["solution"].is_array()) {
+  //     if (j["result"]["solution"].size() > 0 && j["result"]["solution"][0].is_number()) {
+  //       std::vector<int> modelLits = j["result"]["solution"].get<std::vector<int>>();
+  //       //std::cout << Timer::elapsedSeconds() << " Got model" << modelLits.size() << std::endl;
+  //       for (int lit : modelLits) {
+  //         const int var = std::abs(lit);
+  //         _model[var] = lit;
+  //       }
+  //     } 
+  //   } else if (j["result"]["solution"].is_string()) {
+  //     // Handle single compressed model string
+  //     std::string compressedModel = j["result"]["solution"].get<std::string>();
+  //     //std::cout << Timer::elapsedSeconds() << " Got compressed model" << compressedModel.c_str() << std::endl;
+  //     _model = decompressModel(compressedModel);
+  //   }
+
+  //   j["result"]["solution"] = "[solution data omitted]";
+  //   LOG(V2_INFO, "Mallob result: %s\n", j.dump().c_str());
+    
+  //   std::cout << "SAT checker: instance is SATISFIABLE" << std::endl;
+  //   status = statust::SAT;
+  //   return resultt::P_SATISFIABLE;
+
+  // } else if (resultcode == 20) {
+  //   _failed_assumptions.clear();
+  //     // UNSAT
+  //     // Check the type of the solution field
+  //     if (j["result"]["solution"].is_array()) {
+  //       // Handle as array of integers
+  //       if (j["result"]["solution"].size() > 0 && j["result"]["solution"][0].is_number()) {
+  //         std::vector<int> failedAssumptions = j["result"]["solution"].get<std::vector<int>>();
+  //         //std::cout << Timer::elapsedSeconds() << " Got direct integer solution of size" << failedAssumptions.size() << std::endl;
+  //         _failed_assumptions.insert(failedAssumptions.begin(), failedAssumptions.end());
+  //       }
+  //     }
+
+  //   LOG(V2_INFO, "Mallob result: %s\n", j.dump().c_str());
+    
+  //   std::cout << "SAT checker: instance is UNSATISFIABLE" << std::endl;
+  //   status = statust::UNSAT;
+  //   return resultt::P_UNSATISFIABLE;
+  // } else {
+  //   status = statust::ERROR;
+  //   return resultt::P_ERROR;
+  // }
        
   // // DUMMY IMPLEMENTATION: Always return SAT
   // std::cout << "SAT checker (DUMMY): instance is SATISFIABLE" << std::endl;

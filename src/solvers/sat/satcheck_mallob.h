@@ -7,14 +7,15 @@
 #include <solvers/hardness_collector.h>
 
 //#ifdef HAVE_MALLOB
-class APIConnector;
-class SatJobStream;
+// class APIConnector;
+// class SatJobStream;
+class CBMCSatConnector;
 //#endif
 
 class satcheck_mallobt : public cnf_solvert, public hardness_collectort
 {
-  static int streamIdCounter;
-  static APIConnector* _api;
+  //static int streamIdCounter;
+  //static APIConnector* _api;
 
 public:
   satcheck_mallobt(message_handlert &message_handler); 
@@ -55,7 +56,8 @@ private:
   bool _submitted = false;
   
   //#ifdef HAVE_MALLOB
-  SatJobStream* _streamer;
+  //SatJobStream* _streamer;
+  CBMCSatConnector* _sat_connector {nullptr};
   //#endif
 };
 
