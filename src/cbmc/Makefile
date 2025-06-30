@@ -54,7 +54,8 @@ include ../common
 
 CLEANFILES = cbmc$(EXEEXT) libcbmc$(LIBEXT) 
 
-all: cbmc$(EXEEXT) libcbmc$(LIBEXT)
+#all: cbmc$(EXEEXT) libcbmc$(LIBEXT)
+all: libcbmc$(LIBEXT)
 
 ifneq ($(wildcard ../bv_refinement/Makefile),)
   OBJ += ../bv_refinement/bv_refinement$(LIBEXT)
@@ -68,8 +69,8 @@ endif
 
 ###############################################################################
 
-cbmc$(EXEEXT): $(OBJ)
-	$(LINKBIN)
+# cbmc$(EXEEXT): $(OBJ)
+# 	$(LINKBIN)
 
 libcbmc$(LIBEXT): $(OBJ)
 	$(LINKLIB)

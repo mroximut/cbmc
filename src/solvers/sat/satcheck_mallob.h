@@ -53,7 +53,6 @@ private:
   std::set<int> _failed_assumptions;
   std::vector<int> _formula;
   bool _empty_clause = false;
-  bool _submitted = false;
   
   //#ifdef HAVE_MALLOB
   //SatJobStream* _streamer;

@@ -30,6 +30,8 @@
 #include "interface/api/api_registry.hpp"
 #include "app/2ls/cbmc_sat_connector.hpp"
 
+#include "util/sys/timer.hpp"
+
 //int satcheck_mallobt::streamIdCounter = 0;
 //APIConnector* satcheck_mallobt::_api = nullptr;
 
@@ -37,35 +39,35 @@
 //nlohmann::json result_json;
 //int job_id = 0;
 
-std::vector<int> decompressModel(const std::string& compressedModel) {
-  char* solutionStr;
-  size_t nbVars = std::strtoul(compressedModel.c_str(), &solutionStr, 10); // reads until ":"
-  assert(solutionStr[0] == ':');
-  std::vector<int> solution(nbVars+1, 0); // index 0 has a filler 0
+// std::vector<int> decompressModel(const std::string& compressedModel) {
+//   char* solutionStr;
+//   size_t nbVars = std::strtoul(compressedModel.c_str(), &solutionStr, 10); // reads until ":"
+//   assert(solutionStr[0] == ':');
+//   std::vector<int> solution(nbVars+1, 0); // index 0 has a filler 0
 
-  int strpos = 1; // after ":"
-  int var = 1;
-  while (solutionStr[strpos] != '\0') {
-      char c = solutionStr[strpos];
-      std::string cAsString(1, c);
-      char* endptr;
-      int num = std::strtol(cAsString.c_str(), &endptr, 16);
-      assert(endptr - cAsString.c_str() == 1); // read exactly one character!
-      if (var <= nbVars) solution[var] = (num & 1) ? var : -var;
-      var++;
-      if (var <= nbVars) solution[var] = (num & 2) ? var : -var;
-      var++;
-      if (var <= nbVars) solution[var] = (num & 4) ? var : -var;
-      var++;
-      if (var <= nbVars) solution[var] = (num & 8) ? var : -var;
-      var++;
-      strpos++;
-  }
-  //LOG(V2_INFO, "MAXSAT DECOMPRESS %s ==> %s\n", packed.c_str(), StringUtils::getSummary(solution, INT_MAX).c_str());
+//   int strpos = 1; // after ":"
+//   int var = 1;
+//   while (solutionStr[strpos] != '\0') {
+//       char c = solutionStr[strpos];
+//       std::string cAsString(1, c);
+//       char* endptr;
+//       int num = std::strtol(cAsString.c_str(), &endptr, 16);
+//       assert(endptr - cAsString.c_str() == 1); // read exactly one character!
+//       if (var <= nbVars) solution[var] = (num & 1) ? var : -var;
+//       var++;
+//       if (var <= nbVars) solution[var] = (num & 2) ? var : -var;
+//       var++;
+//       if (var <= nbVars) solution[var] = (num & 4) ? var : -var;
+//       var++;
+//       if (var <= nbVars) solution[var] = (num & 8) ? var : -var;
+//       var++;
+//       strpos++;
+//   }
+//   //LOG(V2_INFO, "MAXSAT DECOMPRESS %s ==> %s\n", packed.c_str(), StringUtils::getSummary(solution, INT_MAX).c_str());
 
-  //printf("(%.3f) Decompressed model to size %lu\n", Timer::elapsedSeconds(), solution.size());
-  return solution;
-}
+//   //printf("(%.3f) Decompressed model to size %lu\n", Timer::elapsedSeconds(), solution.size());
+//   return solution;
+// }
 
 
 satcheck_mallobt::satcheck_mallobt(message_handlert &message_handler)
@@ -90,7 +92,7 @@ satcheck_mallobt::~satcheck_mallobt() {
   //   _streamer->finalize();
   //   std::cout << "SatJobStream finalized" << std::endl;
   // }
-  _sat_connector->setTerminate();
+  //_sat_connector->setTerminate();
   _model.clear();
   _failed_assumptions.clear();
   _formula.clear();
@@ -223,8 +225,6 @@ propt::resultt satcheck_mallobt::do_prop_solve()
 {
   //assert(!_streamer->isPending());
   std::cout << "Entered prop solve" << std::endl;
-  // _failed_assumptions.clear();
-  // _model.clear();
 
   INVARIANT(status != statust::ERROR, "there cannot be an error");
 
@@ -234,7 +234,6 @@ propt::resultt satcheck_mallobt::do_prop_solve()
   if (_empty_clause) {
     std::cout << "There was an empty clause" << std::endl;
     status = statust::UNSAT;
-    //_formula.clear();
     return resultt::P_UNSATISFIABLE;
   }
 
@@ -247,9 +246,8 @@ propt::resultt satcheck_mallobt::do_prop_solve()
     {
       std::cout << "got FALSE as assumption: instance is UNSATISFIABLE"
                   << std::endl;
-      //currAssumptions.clear();
+      
       status = statust::UNSAT;
-      //do not clear yet _formula.clear();
       return resultt::P_UNSATISFIABLE;
     } else {
       currAssumptions.push_back(a.dimacs());
