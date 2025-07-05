@@ -224,12 +224,12 @@ bool satcheck_mallobt::is_in_conflict(literalt a) const
 propt::resultt satcheck_mallobt::do_prop_solve()
 {
   //assert(!_streamer->isPending());
-  std::cout << "Entered prop solve" << std::endl;
+  //std::cout << "Entered prop solve" << std::endl;
 
   INVARIANT(status != statust::ERROR, "there cannot be an error");
 
-  std::cout << (no_variables() - 1) << " variables, " << clause_counter
-                   << " clauses" << std::endl;
+  //std::cout << (no_variables() - 1) << " variables, " << clause_counter
+  //                 << " clauses" << std::endl;
 
   if (_empty_clause) {
     std::cout << "There was an empty clause" << std::endl;
@@ -244,8 +244,8 @@ propt::resultt satcheck_mallobt::do_prop_solve()
   {
     if(a.is_false())
     {
-      std::cout << "got FALSE as assumption: instance is UNSATISFIABLE"
-                  << std::endl;
+      //std::cout << "got FALSE as assumption: instance is UNSATISFIABLE"
+      //            << std::endl;
       
       status = statust::UNSAT;
       return resultt::P_UNSATISFIABLE;
@@ -258,18 +258,25 @@ propt::resultt satcheck_mallobt::do_prop_solve()
   _formula.clear(); 
   _sat_connector->setAssumptions(std::move(currAssumptions));
   int resultCode = _sat_connector->solve();
+  
+  if (_sat_connector->isTerminating()) {
+    std::cout << "SAT solver was terminated" << std::endl;
+    status = statust::ERROR;
+    throw std::runtime_error("SAT solver was terminated");
+    return resultt::P_ERROR;
+  }
 
   if (resultCode == 10) {
     // SAT
     _model = _sat_connector->getSolution();
-    std::cout << "SAT checker: instance is SATISFIABLE" << std::endl;
+    //std::cout << "SAT checker: instance is SATISFIABLE" << std::endl;
     status = statust::SAT;
     return resultt::P_SATISFIABLE;
 
   } else if (resultCode == 20) {
     // UNSAT
     _failed_assumptions = _sat_connector->getFailedLiterals();
-    std::cout << "SAT checker: instance is UNSATISFIABLE" << std::endl;
+    //std::cout << "SAT checker: instance is UNSATISFIABLE" << std::endl;
     status = statust::UNSAT;
     return resultt::P_UNSATISFIABLE;
 

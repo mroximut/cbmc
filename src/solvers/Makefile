@@ -71,7 +71,7 @@ endif
 ifneq ($(MALLOB),)
   MALLOB_SRC=sat/satcheck_mallob.cpp
   MALLOB_INCLUDE=-I $(MALLOB)/src -I $(MALLOB)/src/util/tsl -I $(MALLOB)/src/util -I $(MALLOB)/lib 
-  MALLOB_LIB= $(MALLOB)/build_2ls/libmallob_corepluscomm$(LIBEXT) $(MALLOB)/build_2ls/libmallob_sat_subproc$(LIBEXT) $(MALLOB)/lib/cadical/libcadical$(LIBEXT)
+  MALLOB_LIB= $(MALLOB)/build/libmallob_corepluscomm$(LIBEXT) $(MALLOB)/build/libmallob_sat_subproc$(LIBEXT) $(MALLOB)/lib/cadical/libcadical$(LIBEXT)
   CP_CXXFLAGS += -DHAVE_MALLOB 
 endif
 
