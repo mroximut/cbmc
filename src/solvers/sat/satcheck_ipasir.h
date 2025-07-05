@@ -46,12 +46,18 @@ public:
     return true;
   }
 
+  static float sat_time; // Time spent in SAT solving
+  static int sat_calls;
+
 protected:
   resultt do_prop_solve() override;
 
   void *solver;
 
   bvt assumptions;
+
+private:
+  
 };
 
 #endif // CPROVER_SOLVERS_SAT_SATCHECK_IPASIR_H

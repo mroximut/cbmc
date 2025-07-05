@@ -23,6 +23,11 @@ extern "C"
 #include <ipasir.h>
 }
 
+static int instance_id = 1;
+float satcheck_ipasirt::sat_time = 0.0f;
+int satcheck_ipasirt::sat_calls = 0;  
+int rev = 0;
+
 /*
 
 Interface description:
@@ -115,9 +120,9 @@ void satcheck_ipasirt::lcnf(const bvt &bv)
 propt::resultt satcheck_ipasirt::do_prop_solve()
 {
   INVARIANT(status!=statust::ERROR, "there cannot be an error");
-
-  log.statistics() << (no_variables() - 1) << " variables, " << clause_counter
-                   << " clauses" << messaget::eom;
+  rev++;
+  //std::cout << (no_variables() - 1) << " variables, " << clause_counter
+  //                 << " clauses" << std::endl;
 
   // if assumptions contains false, we need this to be UNSAT
   bvt::const_iterator it =
@@ -139,21 +144,25 @@ propt::resultt satcheck_ipasirt::do_prop_solve()
 
     // solve the formula, and handle the return code (10=SAT, 20=UNSAT)
     // Start timer for SAT solving
-    
+
     class SatTimeLogger
     {
     public:
       std::chrono::steady_clock::time_point &start, &end;
+      int &state;
       SatTimeLogger(std::chrono::steady_clock::time_point &s,
-                    std::chrono::steady_clock::time_point &e)
-        : start(s), end(e) {}
+                    std::chrono::steady_clock::time_point &e,
+                    int &solver_state)
+        : start(s), end(e), state(solver_state) {}
       ~SatTimeLogger()
       {
-        std::cout << "t SATTIME:"
+        std::cout << "t " << instance_id << " " << rev << " " << state << " "
                     << std::chrono::duration_cast<std::chrono::milliseconds>(
-                          end - start)
-                            .count()
-                    << " ms" << std::endl;
+                          end - start).count() / 1000.0f
+                    << std::endl;
+        satcheck_ipasirt::sat_time +=
+          std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
+            .count() / 1000.0f;
       }
     };
 
@@ -161,10 +170,11 @@ propt::resultt satcheck_ipasirt::do_prop_solve()
     int solver_state = -1;
     auto sat_end = sat_start;
 
-    SatTimeLogger sat_time_logger(sat_start, sat_end);
+    SatTimeLogger sat_time_logger(sat_start, sat_end, solver_state);
 
     try
     {
+      sat_calls++;
       solver_state = ipasir_solve(solver);
       sat_end = std::chrono::steady_clock::now();
     }
@@ -208,6 +218,7 @@ satcheck_ipasirt::satcheck_ipasirt(message_handlert &message_handler)
 {
   INVARIANT(!solver, "there cannot be a solver already");
   solver=ipasir_init();
+  instance_id++;
 }
 
 satcheck_ipasirt::~satcheck_ipasirt()
@@ -215,6 +226,7 @@ satcheck_ipasirt::~satcheck_ipasirt()
   if(solver)
     ipasir_release(solver);
   solver=nullptr;
+  std::cout << "t SAT_TIME: " << sat_time << std::endl;
 }
 
 bool satcheck_ipasirt::is_in_conflict(literalt a) const
@@ -224,16 +236,14 @@ bool satcheck_ipasirt::is_in_conflict(literalt a) const
 
 void satcheck_ipasirt::set_assumptions(const bvt &bv)
 {
-  bvt::const_iterator it = std::find_if(bv.begin(), bv.end(), is_true);
-  const bool has_true = it != bv.end();
-
-  if(has_true)
+  assumptions.clear();
+  for(const auto &assumption : bv)
   {
-    assumptions.clear();
-    return;
+    if(!assumption.is_true())
+    {
+      assumptions.push_back(assumption);
+    }
   }
-  // only copy assertions, if there is no false in bt parameter
-  assumptions=bv;
 }
 
 #endif
