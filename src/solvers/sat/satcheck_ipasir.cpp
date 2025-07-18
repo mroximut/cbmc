@@ -23,7 +23,7 @@ extern "C"
 #include <ipasir.h>
 }
 
-static int instance_id = 1;
+static int instance_id = 0;
 float satcheck_ipasirt::sat_time = 0.0f;
 int satcheck_ipasirt::sat_calls = 0;  
 int rev = 0;
