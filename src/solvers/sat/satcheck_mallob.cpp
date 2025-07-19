@@ -33,7 +33,7 @@
 int satcheck_mallobt::streamIdCounter = 0;
 
 //bool pending = false;
-nlohmann::json result_json;
+//nlohmann::json result_json;
 //int job_id = 0;
 
 
@@ -79,6 +79,7 @@ satcheck_mallobt::satcheck_mallobt(message_handlert &message_handler)
 
 satcheck_mallobt::~satcheck_mallobt() { 
   _streamer->finalize();
+  delete _streamer;
 
   _model.clear();
   _failed_assumptions.clear();
@@ -105,7 +106,7 @@ tvt satcheck_mallobt::l_get(literalt a) const
   tvt result;
 
   // Check if the variable is in bounds
-  if(a.var_no() >= _model.size())
+  if(a.var_no() >= no_variables())
     return tvt::unknown();
 
   const int val = _model[a.var_no()];
@@ -183,7 +184,7 @@ propt::resultt satcheck_mallobt::do_prop_solve(const bvt &assumptions)
 {
   assert(!_streamer->isPending());
   log.status() << "Entered prop solve" << messaget::eom;
-  _failed_assumptions.clear();
+  //_failed_assumptions.clear();
 
   INVARIANT(status != statust::ERROR, "there cannot be an error");
 
@@ -193,11 +194,12 @@ propt::resultt satcheck_mallobt::do_prop_solve(const bvt &assumptions)
   if (_empty_clause) {
     log.status() << "There was an empty clause" << messaget::eom;
     status = statust::UNSAT;
-    _formula.clear();
+    //_formula.clear();
     return resultt::P_UNSATISFIABLE;
   }
 
   std::vector<int> currAssumptions;
+  currAssumptions.reserve(assumptions.size());
   // Check for trivial UNSAT from assumptions
   for(const auto &a : assumptions)
   {
@@ -206,109 +208,22 @@ propt::resultt satcheck_mallobt::do_prop_solve(const bvt &assumptions)
       log.status() << "got FALSE as assumption: instance is UNSATISFIABLE"
                   << messaget::eom;
       status = statust::UNSAT;
-      _formula.clear();
+      //_formula.clear();
       return resultt::P_UNSATISFIABLE;
     } else if (!a.is_true()) {
       currAssumptions.push_back(a.dimacs());
     }
   }
-
-  // while (!initialized) {
-  //     usleep(100000);
-  // }
-/////////////////////////////////////////////////////
-  // pending = true;
-
-  // std::string precursor1 = job_id == 0 ? "" : "cbmc.cbmc-job-rev." + std::to_string(job_id-1);
-  //   // Write a job JSON for the singular job to solve
-  //   nlohmann::json json1 = {
-  //     {"user", "cbmc"},
-  //     {"name", "cbmc-job-rev." + std::to_string(job_id)},
-  //     {"incremental", true},
-  //     //{"precursor", precursor},
-  //     //{"done", true},
-  //     //{"files", {"/home/oguz/Desktop/hiwi_code/cbmc_mallob_monolithic/mallob/instances/r3unknown_10k.cnf"}},
-  //     {"literals", _formula},
-  //     {"assumptions", {-1}},
-  //     {"priority", 1.000},
-  //     {"application", "SAT"}
-  // };
-  // if (precursor1 != "") json1["precursor"] = precursor1;
-  // // if (_params->crossJobCommunication()) json["group-id"] = "1";
-  // // if (_params->jobWallclockLimit() > 0)
-  // //     json["wallclock-limit"] = std::to_string(_params->jobWallclockLimit()) + "s";
-  // // if (_params->jobCpuLimit() > 0) {
-  // //     json["cpu-limit"] = std::to_string(_params->jobCpuLimit()) + "s";
-  // // }
- 
-  // auto result1 = _client->getAPI().submit(json1, [&](nlohmann::json& response) {
-  //     job_id++;
-  //     result_json = std::move(response);
-  //     pending = false;
-  // });
-  // if (result1 != JsonInterface::Result::ACCEPT) {
-  //     LOG(V0_CRIT, "[ERROR] Cannot introduce job!\n");
-  //     abort();
-  // }
-
-  // while (pending) {
-  //     usleep(100000);
-  // }
-
-  // pending = true;
-
-  // std::string precursor = job_id == 0 ? "" : "cbmc.cbmc-job-rev." + std::to_string(job_id-1);
-  //   // Write a job JSON for the singular job to solve
-  //   nlohmann::json json = {
-  //     {"user", "cbmc"},
-  //     {"name", "cbmc-job-rev." + std::to_string(job_id)},
-  //     {"incremental", true},
-  //     //{"precursor", precursor},
-  //     //{"done", true},
-  //     //{"files", {"/home/oguz/Desktop/hiwi_code/cbmc_mallob_monolithic/mallob/instances/r3unknown_10k.cnf"}},
-  //     {"literals", _formula},
-  //     {"assumptions", currAssumptions},
-  //     {"priority", 1.000},
-  //     {"application", "SAT"}
-  // };
-  //if (precursor != "") json["precursor"] = precursor;
-  // if (_params->crossJobCommunication()) json["group-id"] = "1";
-  // if (_params->jobWallclockLimit() > 0)
-  //     json["wallclock-limit"] = std::to_string(_params->jobWallclockLimit()) + "s";
-  // if (_params->jobCpuLimit() > 0) {
-  //     json["cpu-limit"] = std::to_string(_params->jobCpuLimit()) + "s";
-  // }
- 
-  // auto result = _api->submit(json, [&](nlohmann::json& response) {
-  //     job_id++;
-  //     result_json = std::move(response);
-  //     pending = false;
-  // });
-  // if (result != JsonInterface::Result::ACCEPT) {
-  //     LOG(V0_CRIT, "[ERROR] Cannot introduce job!\n");
-  //     abort();
-  // }
-
-  // while (pending) {
-  //     usleep(100000);
-  // }
-  /////////////////////////////////////////
   
   _streamer->submitNext(std::move(_formula), currAssumptions, "", 1.0);
   while (_streamer->isPending()) {
     //log.status() << "Waiting for job to finish" << messaget::eom;
-    usleep(100000);
+    usleep(100);
   }
   _formula = std::vector<int>();
-  result_json = _streamer->getResult();
-
-  log.status() << "Mallob job finished" << messaget::eom;  
-  if (!result_json.empty()) {
-    LOG(V2_INFO, "Result: %s\n", result_json.dump().c_str());
-  }
+  nlohmann::json j = _streamer->getResult();
   
   int resultcode;
-  nlohmann::json j = result_json;
   // Success!
   resultcode = j["result"]["resultcode"];
   if (resultcode == 10) {
@@ -331,21 +246,28 @@ propt::resultt satcheck_mallobt::do_prop_solve(const bvt &assumptions)
       _model = decompressModel(compressedModel);
     }
 
+    j["result"]["solution"] = "[solution data omitted]";
+    LOG(V2_INFO, "Mallob result: %s\n", j.dump().c_str());
+    
     log.status() << "SAT checker: instance is SATISFIABLE" << messaget::eom;
     status = statust::SAT;
     return resultt::P_SATISFIABLE;
 
   } else if (resultcode == 20) {
+      _failed_assumptions.clear();
       // UNSAT
       // Check the type of the solution field
       if (j["result"]["solution"].is_array()) {
         // Handle as array of integers
         if (j["result"]["solution"].size() > 0 && j["result"]["solution"][0].is_number()) {
-          std::vector<int> failedAssumptions = j["result"]["solution"].get<std::vector<int>>();
-          log.status() << Timer::elapsedSeconds() << " Got direct integer solution of size" << failedAssumptions.size() << messaget::eom;
+          std::vector<int> failedAssumptions = j["result"]["solution"].get<const std::vector<int>>();
+          //log.status() << Timer::elapsedSeconds() << " Got direct integer solution of size" << failedAssumptions.size() << messaget::eom;
           _failed_assumptions.insert(failedAssumptions.begin(), failedAssumptions.end());
         }
       }
+    
+    LOG(V2_INFO, "Mallob result: %s\n", j.dump().c_str());
+
     log.status() << "SAT checker: instance is UNSATISFIABLE" << messaget::eom;
     status = statust::UNSAT;
     return resultt::P_UNSATISFIABLE;
