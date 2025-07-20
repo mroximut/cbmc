@@ -7,8 +7,7 @@
 #include <solvers/hardness_collector.h>
 
 //#ifdef HAVE_MALLOB
-class APIConnector;
-class SatJobStream;
+class CBMCSatConnector;
 //#endif
 
 class satcheck_mallobt : public cnf_solvert, public hardness_collectort
@@ -47,8 +46,7 @@ private:
   bool _empty_clause = false;
   
   //#ifdef HAVE_MALLOB
-  APIConnector* _api = nullptr;
-  SatJobStream* _streamer = nullptr;
+  CBMCSatConnector* _sat_connector {nullptr};
   //#endif
 };
 

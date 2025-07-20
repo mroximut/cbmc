@@ -27,8 +27,10 @@
 #include "interface/json_interface.hpp"
 #include "util/json.hpp"
 #include "util/option.hpp"
-#include "app/cbmc/sat_job_stream.hpp"
 #include "interface/api/api_registry.hpp"
+#include "app/2ls/cbmc_sat_connector.hpp"
+
+#include "util/sys/timer.hpp"
 
 int satcheck_mallobt::streamIdCounter = 0;
 
@@ -37,56 +39,65 @@ int satcheck_mallobt::streamIdCounter = 0;
 //int job_id = 0;
 
 
-std::vector<int> decompressModel(const std::string& compressedModel) {
-  char* solutionStr;
-  size_t nbVars = std::strtoul(compressedModel.c_str(), &solutionStr, 10); // reads until ":"
-  assert(solutionStr[0] == ':');
-  std::vector<int> solution(nbVars+1, 0); // index 0 has a filler 0
+// std::vector<int> decompressModel(const std::string& compressedModel) {
+//   char* solutionStr;
+//   size_t nbVars = std::strtoul(compressedModel.c_str(), &solutionStr, 10); // reads until ":"
+//   assert(solutionStr[0] == ':');
+//   std::vector<int> solution(nbVars+1, 0); // index 0 has a filler 0
 
-  int strpos = 1; // after ":"
-  int var = 1;
-  while (solutionStr[strpos] != '\0') {
-      char c = solutionStr[strpos];
-      std::string cAsString(1, c);
-      char* endptr;
-      int num = std::strtol(cAsString.c_str(), &endptr, 16);
-      assert(endptr - cAsString.c_str() == 1); // read exactly one character!
-      if (var <= nbVars) solution[var] = (num & 1) ? var : -var;
-      var++;
-      if (var <= nbVars) solution[var] = (num & 2) ? var : -var;
-      var++;
-      if (var <= nbVars) solution[var] = (num & 4) ? var : -var;
-      var++;
-      if (var <= nbVars) solution[var] = (num & 8) ? var : -var;
-      var++;
-      strpos++;
-  }
-  //LOG(V2_INFO, "MAXSAT DECOMPRESS %s ==> %s\n", packed.c_str(), StringUtils::getSummary(solution, INT_MAX).c_str());
+//   int strpos = 1; // after ":"
+//   int var = 1;
+//   while (solutionStr[strpos] != '\0') {
+//       char c = solutionStr[strpos];
+//       std::string cAsString(1, c);
+//       char* endptr;
+//       int num = std::strtol(cAsString.c_str(), &endptr, 16);
+//       assert(endptr - cAsString.c_str() == 1); // read exactly one character!
+//       if (var <= nbVars) solution[var] = (num & 1) ? var : -var;
+//       var++;
+//       if (var <= nbVars) solution[var] = (num & 2) ? var : -var;
+//       var++;
+//       if (var <= nbVars) solution[var] = (num & 4) ? var : -var;
+//       var++;
+//       if (var <= nbVars) solution[var] = (num & 8) ? var : -var;
+//       var++;
+//       strpos++;
+//   }
+//   //LOG(V2_INFO, "MAXSAT DECOMPRESS %s ==> %s\n", packed.c_str(), StringUtils::getSummary(solution, INT_MAX).c_str());
 
-  //printf("(%.3f) Decompressed model to size %lu\n", Timer::elapsedSeconds(), solution.size());
-  return solution;
-}
+//   //printf("(%.3f) Decompressed model to size %lu\n", Timer::elapsedSeconds(), solution.size());
+//   return solution;
+// }
 
 
 satcheck_mallobt::satcheck_mallobt(message_handlert &message_handler)
   : cnf_solvert(message_handler)
 {
-  _api = APIRegistry::get();
-  log.status() << "Hello" << _api->active() << messaget::eom; 
-  _streamer = new SatJobStream(*_api, streamIdCounter, true);
-  streamIdCounter++;
+  // _api = APIRegistry::get();
+  // log.status() << "Hello" << _api->active() << messaget::eom; 
+  // _streamer = new SatJobStream(*_api, streamIdCounter, true);
+  // streamIdCounter++;
+
+  _sat_connector = new CBMCSatConnector("Mallob SAT Connector");
 }
 
 satcheck_mallobt::~satcheck_mallobt() { 
-  _streamer->finalize();
-  delete _streamer;
-
   _model.clear();
   _failed_assumptions.clear();
   _formula.clear();
+  delete _sat_connector;
+  _sat_connector = nullptr; 
 
-  _api = nullptr;
-  _streamer = nullptr;
+
+  // _streamer->finalize();
+  // delete _streamer;
+
+  // _model.clear();
+  // _failed_assumptions.clear();
+  // _formula.clear();
+
+  // _api = nullptr;
+  // _streamer = nullptr;
 
   log.status() << "SAT checker: instance is deleted" << messaget::eom;
 }
@@ -182,9 +193,8 @@ bool satcheck_mallobt::is_in_conflict(literalt a) const
 
 propt::resultt satcheck_mallobt::do_prop_solve(const bvt &assumptions)
 {
-  assert(!_streamer->isPending());
+  //assert(!_streamer->isPending());
   log.status() << "Entered prop solve" << messaget::eom;
-  //_failed_assumptions.clear();
 
   INVARIANT(status != statust::ERROR, "there cannot be an error");
 
@@ -194,7 +204,6 @@ propt::resultt satcheck_mallobt::do_prop_solve(const bvt &assumptions)
   if (_empty_clause) {
     log.status() << "There was an empty clause" << messaget::eom;
     status = statust::UNSAT;
-    //_formula.clear();
     return resultt::P_UNSATISFIABLE;
   }
 
@@ -208,73 +217,103 @@ propt::resultt satcheck_mallobt::do_prop_solve(const bvt &assumptions)
       log.status() << "got FALSE as assumption: instance is UNSATISFIABLE"
                   << messaget::eom;
       status = statust::UNSAT;
-      //_formula.clear();
       return resultt::P_UNSATISFIABLE;
     } else if (!a.is_true()) {
       currAssumptions.push_back(a.dimacs());
     }
   }
   
-  _streamer->submitNext(std::move(_formula), currAssumptions, "", 1.0);
-  while (_streamer->isPending()) {
-    //log.status() << "Waiting for job to finish" << messaget::eom;
-    usleep(100);
-  }
-  _formula = std::vector<int>();
-  nlohmann::json j = _streamer->getResult();
+  // _streamer->submitNext(std::move(_formula), currAssumptions, "", 1.0);
+  // while (_streamer->isPending()) {
+  //   //log.status() << "Waiting for job to finish" << messaget::eom;
+  //   usleep(100);
+  // }
+  // _formula = std::vector<int>();
+  // nlohmann::json j = _streamer->getResult();
+
+  _sat_connector->setFormula(std::move(_formula), no_variables(), no_clauses());
+  _formula.clear(); 
+  _sat_connector->setAssumptions(std::move(currAssumptions));
+  int resultCode = _sat_connector->solve();
   
-  int resultcode;
-  // Success!
-  resultcode = j["result"]["resultcode"];
-  if (resultcode == 10) {
-      // SAT
-    _model.resize(no_variables()+1, 0);
-
-    if (j["result"]["solution"].is_array()) {
-      if (j["result"]["solution"].size() > 0 && j["result"]["solution"][0].is_number()) {
-        std::vector<int> modelLits = j["result"]["solution"].get<std::vector<int>>();
-        //log.status() << Timer::elapsedSeconds() << " Got model" << modelLits.size() << messaget::eom;
-        for (int lit : modelLits) {
-          const int var = std::abs(lit);
-          _model[var] = lit;
-        }
-      } 
-    } else if (j["result"]["solution"].is_string()) {
-      // Handle single compressed model string
-      std::string compressedModel = j["result"]["solution"].get<std::string>();
-      //log.status() << Timer::elapsedSeconds() << " Got compressed model" << compressedModel.c_str() << messaget::eom;
-      _model = decompressModel(compressedModel);
-    }
-
-    j["result"]["solution"] = "[solution data omitted]";
-    LOG(V2_INFO, "Mallob result: %s\n", j.dump().c_str());
-    
-    log.status() << "SAT checker: instance is SATISFIABLE" << messaget::eom;
+  if (_sat_connector->isTerminating()) {
+    std::cout << "SAT solver was terminated" << std::endl;
+    status = statust::ERROR;
+    throw std::runtime_error("SAT solver was terminated");
+    return resultt::P_ERROR;
+  }
+  
+  if (resultCode == 10) {
+    // SAT
+    _model = _sat_connector->getSolution();
+    //std::cout << "SAT checker: instance is SATISFIABLE" << std::endl;
     status = statust::SAT;
     return resultt::P_SATISFIABLE;
 
-  } else if (resultcode == 20) {
-      _failed_assumptions.clear();
-      // UNSAT
-      // Check the type of the solution field
-      if (j["result"]["solution"].is_array()) {
-        // Handle as array of integers
-        if (j["result"]["solution"].size() > 0 && j["result"]["solution"][0].is_number()) {
-          std::vector<int> failedAssumptions = j["result"]["solution"].get<const std::vector<int>>();
-          //log.status() << Timer::elapsedSeconds() << " Got direct integer solution of size" << failedAssumptions.size() << messaget::eom;
-          _failed_assumptions.insert(failedAssumptions.begin(), failedAssumptions.end());
-        }
-      }
-    
-    LOG(V2_INFO, "Mallob result: %s\n", j.dump().c_str());
-
-    log.status() << "SAT checker: instance is UNSATISFIABLE" << messaget::eom;
+  } else if (resultCode == 20) {
+    // UNSAT
+    _failed_assumptions = _sat_connector->getFailedLiterals();
+    //std::cout << "SAT checker: instance is UNSATISFIABLE" << std::endl;
     status = statust::UNSAT;
     return resultt::P_UNSATISFIABLE;
+
   } else {
     status = statust::ERROR;
     return resultt::P_ERROR;
   }
+  
+  // int resultcode;
+  // // Success!
+  // resultcode = j["result"]["resultcode"];
+  // if (resultcode == 10) {
+  //     // SAT
+  //   _model.resize(no_variables()+1, 0);
+
+  //   if (j["result"]["solution"].is_array()) {
+  //     if (j["result"]["solution"].size() > 0 && j["result"]["solution"][0].is_number()) {
+  //       std::vector<int> modelLits = j["result"]["solution"].get<std::vector<int>>();
+  //       //log.status() << Timer::elapsedSeconds() << " Got model" << modelLits.size() << messaget::eom;
+  //       for (int lit : modelLits) {
+  //         const int var = std::abs(lit);
+  //         _model[var] = lit;
+  //       }
+  //     } 
+  //   } else if (j["result"]["solution"].is_string()) {
+  //     // Handle single compressed model string
+  //     std::string compressedModel = j["result"]["solution"].get<std::string>();
+  //     //log.status() << Timer::elapsedSeconds() << " Got compressed model" << compressedModel.c_str() << messaget::eom;
+  //     _model = decompressModel(compressedModel);
+  //   }
+
+  //   j["result"]["solution"] = "[solution data omitted]";
+  //   LOG(V2_INFO, "Mallob result: %s\n", j.dump().c_str());
+    
+  //   log.status() << "SAT checker: instance is SATISFIABLE" << messaget::eom;
+  //   status = statust::SAT;
+  //   return resultt::P_SATISFIABLE;
+
+  // } else if (resultcode == 20) {
+  //     _failed_assumptions.clear();
+  //     // UNSAT
+  //     // Check the type of the solution field
+  //     if (j["result"]["solution"].is_array()) {
+  //       // Handle as array of integers
+  //       if (j["result"]["solution"].size() > 0 && j["result"]["solution"][0].is_number()) {
+  //         std::vector<int> failedAssumptions = j["result"]["solution"].get<const std::vector<int>>();
+  //         //log.status() << Timer::elapsedSeconds() << " Got direct integer solution of size" << failedAssumptions.size() << messaget::eom;
+  //         _failed_assumptions.insert(failedAssumptions.begin(), failedAssumptions.end());
+  //       }
+  //     }
+    
+  //   LOG(V2_INFO, "Mallob result: %s\n", j.dump().c_str());
+
+  //   log.status() << "SAT checker: instance is UNSATISFIABLE" << messaget::eom;
+  //   status = statust::UNSAT;
+  //   return resultt::P_UNSATISFIABLE;
+  // } else {
+  //   status = statust::ERROR;
+  //   return resultt::P_ERROR;
+  // }
        
   // DUMMY IMPLEMENTATION: Always return SAT
   //log.status() << "SAT checker (DUMMY): instance is SATISFIABLE" << messaget::eom;
