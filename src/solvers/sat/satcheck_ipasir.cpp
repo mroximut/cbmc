@@ -13,6 +13,8 @@ Author: Norbert Manthey, nmanthey@amazon.com
 #include <util/threeval.h>
 #include <chrono>
 #include <iostream>
+#include <fstream>
+#include <string>
 
 #include "satcheck_ipasir.h"
 
@@ -22,6 +24,9 @@ extern "C"
 {
 #include <ipasir.h>
 }
+
+extern std::ofstream global_cnf_file;
+bool cnf_file_open;
 
 static int instance_id = 0;
 float satcheck_ipasirt::sat_time = 0.0f;
@@ -91,9 +96,11 @@ void satcheck_ipasirt::lcnf(const bvt &bv)
     {
       // add literal with correct sign
       ipasir_add(solver, literal.dimacs());
+      if(cnf_file_open) global_cnf_file << literal.dimacs() << " ";
     }
   }
   ipasir_add(solver, 0); // terminate clause
+  if(cnf_file_open) global_cnf_file << "0\n";
 
   if(solver_hardness)
   {
@@ -136,11 +143,15 @@ propt::resultt satcheck_ipasirt::do_prop_solve()
   }
   else
   {
+    if (cnf_file_open && !assumptions.empty()) global_cnf_file << "a ";
     for(const auto &literal : assumptions)
     {
-      if(!literal.is_false())
+      if(!literal.is_false()) {
         ipasir_assume(solver, literal.dimacs());
+        if (cnf_file_open) global_cnf_file << literal.dimacs() << " ";
+      }
     }
+    if (cnf_file_open && !assumptions.empty()) global_cnf_file << "0\n";
 
     // solve the formula, and handle the return code (10=SAT, 20=UNSAT)
     // Start timer for SAT solving
@@ -188,11 +199,13 @@ propt::resultt satcheck_ipasirt::do_prop_solve()
     {
       log.status() << "SAT checker: instance is SATISFIABLE" << messaget::eom;
       status = statust::SAT;
+      if (cnf_file_open) global_cnf_file << "c SAT\n";
       return resultt::P_SATISFIABLE;
     }
     else if(20 == solver_state)
     {
       log.status() << "SAT checker: instance is UNSATISFIABLE" << messaget::eom;
+      if (cnf_file_open) global_cnf_file << "c UNSAT\n";
     }
     else
     {
@@ -219,6 +232,7 @@ satcheck_ipasirt::satcheck_ipasirt(message_handlert &message_handler)
   INVARIANT(!solver, "there cannot be a solver already");
   solver=ipasir_init();
   instance_id++;
+  if (global_cnf_file.is_open()) cnf_file_open = true;
 }
 
 satcheck_ipasirt::~satcheck_ipasirt()
