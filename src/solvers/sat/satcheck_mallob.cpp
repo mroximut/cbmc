@@ -32,7 +32,7 @@
 
 #include "util/sys/timer.hpp"
 
-int satcheck_mallobt::streamIdCounter = 0;
+//int satcheck_mallobt::streamIdCounter = 0;
 
 //bool pending = false;
 //nlohmann::json result_json;
@@ -151,6 +151,7 @@ void satcheck_mallobt::lcnf(const bvt &bv)
     {
       // add literal with correct sign
       _formula.push_back(literal.dimacs());
+      //nb_vars = std::max(nb_vars, std::abs(literal.dimacs()));
     }
   } 
   
@@ -231,9 +232,11 @@ propt::resultt satcheck_mallobt::do_prop_solve(const bvt &assumptions)
   // _formula = std::vector<int>();
   // nlohmann::json j = _streamer->getResult();
 
-  _sat_connector->setFormula(std::move(_formula), no_variables(), no_clauses());
+  _sat_connector->setFormula(std::move(_formula), no_variables() - 1, no_clauses());
   _formula.clear(); 
-  _sat_connector->setAssumptions(std::move(currAssumptions));
+  _sat_connector->setAssumptions(currAssumptions);
+
+
   int resultCode = _sat_connector->solve();
   
   if (_sat_connector->isTerminating()) {
@@ -261,7 +264,9 @@ propt::resultt satcheck_mallobt::do_prop_solve(const bvt &assumptions)
     status = statust::ERROR;
     return resultt::P_ERROR;
   }
-  
+
+
+  // nlohmann::json j = _sat_connector->solveOldJobStream(); 
   // int resultcode;
   // // Success!
   // resultcode = j["result"]["resultcode"];
@@ -316,10 +321,10 @@ propt::resultt satcheck_mallobt::do_prop_solve(const bvt &assumptions)
   // }
        
   // DUMMY IMPLEMENTATION: Always return SAT
-  //log.status() << "SAT checker (DUMMY): instance is SATISFIABLE" << messaget::eom;
+  // log.status() << "SAT checker (DUMMY): instance is SATISFIABLE" << messaget::eom;
   
-  //status = statust::SAT;
-  //return resultt::P_SATISFIABLE;
+  // status = statust::SAT;
+  // return resultt::P_SATISFIABLE;
 }
 //#endif
 
