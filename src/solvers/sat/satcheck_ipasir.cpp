@@ -30,7 +30,7 @@ bool cnf_file_open;
 
 static int instance_id = 0;
 float satcheck_ipasirt::sat_time = 0.0f;
-int satcheck_ipasirt::sat_calls = 0;  
+int satcheck_ipasirt::sat_calls = 0;
 int rev = 0;
 
 /*
@@ -140,9 +140,10 @@ propt::resultt satcheck_ipasirt::do_prop_solve()
   {
     log.status() << "got FALSE as assumption: instance is UNSATISFIABLE"
                  << messaget::eom;
+    status=statust::UNSAT;
+    return resultt::P_UNSATISFIABLE;
   }
-  else
-  {
+
     if (cnf_file_open && !assumptions.empty()) global_cnf_file << "a ";
     for(const auto &literal : assumptions)
     {
@@ -214,7 +215,6 @@ propt::resultt satcheck_ipasirt::do_prop_solve()
       throw analysis_exceptiont(
         "solving inside IPASIR SAT solver has been interrupted");
     }
-  }
 
   status=statust::UNSAT;
   return resultt::P_UNSATISFIABLE;
