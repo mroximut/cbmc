@@ -157,6 +157,7 @@ void satcheck_mallobt::lcnf(const bvt &bv)
     if(!literal.is_false())
     {
       // add literal with correct sign
+      //_sat_connector->addLiteral(literal.dimacs());
       _formula.push_back(literal.dimacs());
       //std::cout << literal.dimacs() << " ";
     }
@@ -165,9 +166,10 @@ void satcheck_mallobt::lcnf(const bvt &bv)
   if (_formula.back() == 0) {
     _empty_clause = true;
     return;
-  }
+ }
   //std::cout << "0" << std::endl;
   _formula.push_back(0); // terminate clause
+  //_sat_connector->addLiteral(0); 
 
   if(solver_hardness)
   {
@@ -246,7 +248,6 @@ propt::resultt satcheck_mallobt::do_prop_solve()
     {
       //std::cout << "got FALSE as assumption: instance is UNSATISFIABLE"
       //            << std::endl;
-      
       status = statust::UNSAT;
       return resultt::P_UNSATISFIABLE;
     } else {
@@ -256,6 +257,9 @@ propt::resultt satcheck_mallobt::do_prop_solve()
 
   _sat_connector->setFormula(std::move(_formula), no_variables(), no_clauses());
   _formula.clear(); 
+  //for (const auto &lit : currAssumptions) {
+  //  _sat_connector->assumeLiteral(lit);
+  //}
   _sat_connector->setAssumptions(std::move(currAssumptions));
   int resultCode = _sat_connector->solve();
   
@@ -281,8 +285,10 @@ propt::resultt satcheck_mallobt::do_prop_solve()
     return resultt::P_UNSATISFIABLE;
 
   } else {
-    status = statust::ERROR;
-    return resultt::P_ERROR;
+    //status = statust::ERROR;
+    //return resultt::P_ERROR;
+    status = statust::UNSAT;
+    return resultt::P_UNSATISFIABLE;
   }
   
   
