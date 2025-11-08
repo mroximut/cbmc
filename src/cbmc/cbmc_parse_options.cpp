@@ -547,7 +547,7 @@ int cbmc_parse_optionst::doit()
     gcc_versiont gcc_version;
     //gcc_version.get("gcc");
 
-    gcc_version.v_major = 12u;
+    gcc_version.v_major = 14u;
     gcc_version.v_minor = 2u;
     gcc_version.v_patchlevel = 0u;
     gcc_version.flavor = gcc_versiont::flavort::GCC;
