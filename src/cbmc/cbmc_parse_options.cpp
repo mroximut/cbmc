@@ -545,7 +545,15 @@ int cbmc_parse_optionst::doit()
   if(config.ansi_c.preprocessor == configt::ansi_ct::preprocessort::GCC)
   {
     gcc_versiont gcc_version;
-    gcc_version.get("gcc");
+    //gcc_version.get("gcc");
+
+    gcc_version.v_major = 14u;
+    gcc_version.v_minor = 2u;
+    gcc_version.v_patchlevel = 0u;
+    gcc_version.flavor = gcc_versiont::flavort::GCC;
+    gcc_version.default_c_standard = configt::ansi_ct::c_standardt::C11;
+    gcc_version.default_cxx_standard = configt::cppt::cpp_standardt::CPP17;
+
     configure_gcc(gcc_version);
   }
 
