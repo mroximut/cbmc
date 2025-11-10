@@ -21,19 +21,20 @@
 #include <thread>
 #include <vector>
 
-#include "util/logger.hpp"
-#include "util/params.hpp"
-#include "interface/api/api_connector.hpp"
-#include "interface/json_interface.hpp"
-#include "util/json.hpp"
-#include "util/option.hpp"
-#include "interface/api/api_registry.hpp"
-#include "app/2ls/cbmc_sat_connector.hpp"
+// #include "util/logger.hpp"
+// #include "util/params.hpp"
+// #include "interface/api/api_connector.hpp"
+// #include "interface/json_interface.hpp"
+// #include "util/json.hpp"
+// #include "util/option.hpp"
+// #include "interface/api/api_registry.hpp"
+//#include "app/2ls/cbmc_sat_connector.hpp"
 
-#include "util/sys/timer.hpp"
+//#include "util/sys/timer.hpp"
+#include "app/cbmc/cbmc_sat_solver.hpp"
 
 //int satcheck_mallobt::streamIdCounter = 0;
-
+std::function<CBMCSatSolver*()> satcheck_mallobt::createCBMCSatSolver = nullptr;
 //bool pending = false;
 //nlohmann::json result_json;
 //int job_id = 0;
@@ -78,7 +79,8 @@ satcheck_mallobt::satcheck_mallobt(message_handlert &message_handler)
   // _streamer = new SatJobStream(*_api, streamIdCounter, true);
   // streamIdCounter++;
 
-  _sat_connector = new CBMCSatConnector("Mallob SAT Connector");
+  //_sat_connector = new CBMCSatConnector("Mallob SAT Connector");
+  _sat_connector = createCBMCSatSolver();
 }
 
 satcheck_mallobt::~satcheck_mallobt() { 

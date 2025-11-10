@@ -7,12 +7,15 @@
 #include <solvers/hardness_collector.h>
 
 //#ifdef HAVE_MALLOB
-class CBMCSatConnector;
+//class CBMCSatConnector;
+class CBMCSatSolver;
 //#endif
+
+#include <functional>
 
 class satcheck_mallobt : public cnf_solvert, public hardness_collectort
 {
-  static int streamIdCounter;
+  //static int streamIdCounter;
 
 public:
   satcheck_mallobt(message_handlert &message_handler); 
@@ -36,6 +39,9 @@ public:
   
   bool is_in_conflict(literalt a) const override; // check if a literal is part of the conflict
 
+  // factory function (can be assigned a lambda) that creates a CBMCSatSolver*
+  static std::function<CBMCSatSolver*()> createCBMCSatSolver;
+
 protected:
   resultt do_prop_solve(const bvt &assumptions) override; // solve the SAT problem with given assumptions
 
@@ -46,7 +52,8 @@ private:
   bool _empty_clause = false;
   
   //#ifdef HAVE_MALLOB
-  CBMCSatConnector* _sat_connector {nullptr};
+  //CBMCSatConnector* _sat_connector {nullptr};
+  CBMCSatSolver* _sat_connector {nullptr};
   //#endif
 };
 
