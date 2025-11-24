@@ -128,14 +128,15 @@ propt::resultt satcheck_ipasirt::do_prop_solve()
   {
     log.status() << "got FALSE as assumption: instance is UNSATISFIABLE"
                  << messaget::eom;
+    status = statust::UNSAT;
+    return resultt::P_UNSATISFIABLE;
   }
-  else
+
+  for(const auto &literal : assumptions)
   {
-    for(const auto &literal : assumptions)
-    {
-      if(!literal.is_false())
-        ipasir_assume(solver, literal.dimacs());
-    }
+    if(!literal.is_false())
+      ipasir_assume(solver, literal.dimacs());
+  }
 
     // solve the formula, and handle the return code (10=SAT, 20=UNSAT)
     // Start timer for SAT solving
@@ -191,7 +192,6 @@ propt::resultt satcheck_ipasirt::do_prop_solve()
       throw analysis_exceptiont(
         "solving inside IPASIR SAT solver has been interrupted");
     }
-  }
 
   status=statust::UNSAT;
   return resultt::P_UNSATISFIABLE;
@@ -224,16 +224,19 @@ bool satcheck_ipasirt::is_in_conflict(literalt a) const
 
 void satcheck_ipasirt::set_assumptions(const bvt &bv)
 {
-  bvt::const_iterator it = std::find_if(bv.begin(), bv.end(), is_true);
-  const bool has_true = it != bv.end();
-
-  if(has_true)
-  {
-    assumptions.clear();
-    return;
+  // bvt::const_iterator it = std::find_if(bv.begin(), bv.end(), is_true);
+  // const bool has_true = it != bv.end();
+  assumptions.clear();
+  // if(has_true)
+  // {
+  //   assumptions.clear();
+  //   return;
+  // }
+  for(const auto &literal : bv) {
+    if(!literal.is_true()) assumptions.push_back(literal);
   }
   // only copy assertions, if there is no false in bt parameter
-  assumptions=bv;
+  //assumptions=bv;
 }
 
 #endif

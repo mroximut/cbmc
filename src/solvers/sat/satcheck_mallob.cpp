@@ -21,16 +21,17 @@
 #include <thread>
 #include <vector>
 
-#include "util/logger.hpp"
-#include "util/params.hpp"
-#include "interface/api/api_connector.hpp"
-#include "interface/json_interface.hpp"
-#include "util/json.hpp"
-#include "util/option.hpp"
-#include "interface/api/api_registry.hpp"
-#include "app/2ls/cbmc_sat_connector.hpp"
+// #include "util/logger.hpp"
+// #include "util/params.hpp"
+// #include "interface/api/api_connector.hpp"
+// #include "interface/json_interface.hpp"
+// #include "util/json.hpp"
+// #include "util/option.hpp"
+// #include "interface/api/api_registry.hpp"
+// #include "app/2ls/cbmc_sat_connector.hpp"
 
-#include "util/sys/timer.hpp"
+// #include "util/sys/timer.hpp"
+#include "app/cbmc/cbmc_sat_solver.hpp"
 
 //int satcheck_mallobt::streamIdCounter = 0;
 //APIConnector* satcheck_mallobt::_api = nullptr;
@@ -38,6 +39,7 @@
 //bool pending = false;
 //nlohmann::json result_json;
 //int job_id = 0;
+std::function<CBMCSatSolver*()> satcheck_mallobt::createCBMCSatSolver = nullptr;
 
 // std::vector<int> decompressModel(const std::string& compressedModel) {
 //   char* solutionStr;
@@ -84,7 +86,7 @@ satcheck_mallobt::satcheck_mallobt(message_handlert &message_handler)
   // std::cout << "Created SatJobStream with ID: " << streamIdCounter << std::endl;
   // streamIdCounter++;
 
-  _sat_connector = new CBMCSatConnector("Mallob SAT Connector");
+  _sat_connector = createCBMCSatSolver();
 }
 
 satcheck_mallobt::~satcheck_mallobt() { 
@@ -250,17 +252,17 @@ propt::resultt satcheck_mallobt::do_prop_solve()
       //            << std::endl;
       status = statust::UNSAT;
       return resultt::P_UNSATISFIABLE;
-    } else {
+    } else if (!a.is_true()) {
       currAssumptions.push_back(a.dimacs());
     }
   }
 
-  _sat_connector->setFormula(std::move(_formula), no_variables(), no_clauses());
+  _sat_connector->setFormula(std::move(_formula), no_variables() - 1, no_clauses());
   _formula.clear(); 
   //for (const auto &lit : currAssumptions) {
   //  _sat_connector->assumeLiteral(lit);
   //}
-  _sat_connector->setAssumptions(std::move(currAssumptions));
+  _sat_connector->setAssumptions(currAssumptions);
   int resultCode = _sat_connector->solve();
   
   if (_sat_connector->isTerminating()) {
@@ -285,10 +287,8 @@ propt::resultt satcheck_mallobt::do_prop_solve()
     return resultt::P_UNSATISFIABLE;
 
   } else {
-    //status = statust::ERROR;
-    //return resultt::P_ERROR;
-    status = statust::UNSAT;
-    return resultt::P_UNSATISFIABLE;
+    status = statust::ERROR;
+    return resultt::P_ERROR;
   }
   
   

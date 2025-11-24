@@ -9,8 +9,10 @@
 //#ifdef HAVE_MALLOB
 // class APIConnector;
 // class SatJobStream;
-class CBMCSatConnector;
+class CBMCSatSolver;
 //#endif
+
+#include <functional>
 
 class satcheck_mallobt : public cnf_solvert, public hardness_collectort
 {
@@ -41,7 +43,8 @@ public:
   
   bool is_in_conflict(literalt a) const override; // check if a literal is part of the conflict
 
-
+  // factory function (can be assigned a lambda) that creates a CBMCSatSolver*
+  static std::function<CBMCSatSolver*()> createCBMCSatSolver;
 
 protected:
   resultt do_prop_solve() override; // solve the SAT problem with given assumptions
@@ -56,7 +59,7 @@ private:
   
   //#ifdef HAVE_MALLOB
   //SatJobStream* _streamer;
-  CBMCSatConnector* _sat_connector {nullptr};
+  CBMCSatSolver* _sat_connector {nullptr};
   //#endif
 };
 
