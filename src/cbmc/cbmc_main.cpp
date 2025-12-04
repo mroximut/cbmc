@@ -20,7 +20,7 @@ Author: Daniel Kroening, kroening@kroening.com
 #include "cbmc_parse_options.h"
 #include <chrono>
 #include <iostream>
-#include "solvers/sat/satcheck_ipasir.h"
+// #include "solvers/sat/satcheck_ipasir.h"
 
 #ifdef _MSC_VER
 #  include <util/unicode.h>
@@ -58,8 +58,8 @@ int main(int argc, const char **argv)
   auto end_time = std::chrono::steady_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
   std::cout << "t PROCESSING_TIME: " << duration.count() / 1000.0f << std::endl;
-  std::cout << "t SAT_TIME: " << satcheck_ipasirt::sat_time << std::endl;
-  std::cout << "t SAT_CALLS: " << satcheck_ipasirt::sat_calls << std::endl;
+  // std::cout << "t SAT_TIME: " << satcheck_ipasirt::sat_time << std::endl;
+  // std::cout << "t SAT_CALLS: " << satcheck_ipasirt::sat_calls << std::endl;
   std::cout << "s EC=" << res << std::endl;
 
   #ifdef IREP_HASH_STATS
